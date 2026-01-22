@@ -2,5 +2,5 @@
 Recitation notes from NYU's Machine Learning for Physicists, taught in Spring 2026.
 
 Authors:
-- David Hogg
-- Clark Miyamoto (TA)
+- David W Hogg (Faculty)
+- Clark Miyamoto (PhD Student)
