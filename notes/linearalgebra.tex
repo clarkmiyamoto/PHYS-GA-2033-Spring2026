@@ -1,0 +1,196 @@
+\section{Review of Linear Algebra}
+
+\subsection{Singular Value Decomposition}
+Recall the eigen-decomposition of a matrix. Given a symmetric square matrix $A \in \mathbb R^{d\times d}$ with eigenvalues $\{\lambda_i\}_i$ and eigenvectors $\{e_i\}_i$. The matrix could be re-expressed as
+\begin{align}
+	A = U \Lambda U^T
+\end{align}
+where $\Lambda = \text{diag}(\lambda_1, ..., \lambda_d) \in \mathbb R^{d\times d}$ and $U \in \mathbb R^{d\times d}$ is a matrix whose columns are $\{e_i\}_i$.  
+
+This decomposition had a lot of nice properties. In particular, $\Lambda$ is diagonal and $U$ is orthogonal. This allowed us to do all sorts of stuff easily; for example, matrix power.
+\\
+\\
+What happens if we want to do this on non-symmetric, or even non-square matrices? Well we can use the singular value decomposition (SVD).
+
+\subsubsection{Definitions}
+
+\begin{definition}
+	[Singular Values] Let $A \in \mathbb R^{m \times n}$. Now consider $A^T A \in \mathbb R^{n \times n}$. This is a symmetric matrix so it has positive eigenvalues $0 \leq \lambda_1 \leq ... \leq \lambda_n$. The singular values $\sigma_i$ for matrix $A$ are defined as 
+	\begin{align}
+		\sigma_i \equiv \sqrt{\lambda_i} , \text{ s.t. } 0 \leq \lambda_1 \leq ... \leq \lambda_n
+	\end{align}
+\end{definition}
+
+\begin{fact}
+	The number of non-zero singular values of $A$ correspond to the rank of $A$.
+\end{fact}
+
+\emph{Proof:} Let $A : \mathbb R^d \to \mathbb R^d$ be a linear map. Recall by Rank-Nullity theorem $\text{rank}(A) + \text{dim}\, \text{Ker}(A) = \text{dim}(\mathbb R^d)$. Recall $\text{Ker}(A) = \{v : A(v) = 0\}$, so the dimension of the kernel is the number of zero eigenvalues.
+
+Also notice that $\text{Ker}(A) = \text{Ker}(A^T A)$. $(\implies)$ Let $v \in \text{Ker}(A)$, then $A^T A v = 0$, therefore $v \in \text{Ker}(A^T A)$. $(\impliedby)$ Let $v \in \text{Ker}(A^T A)$, then $A^T A v = 0$, meaning $x^T A^T A v = \|A v\|^2 = 0$, the vector norm is only zero when the vector is zero, therefore $Av = 0$, implying $v \in \text{Ker}(A)$. 
+
+This means the $\text{rank}(A) = \text{dim}(\mathbb R^d) - \text{Ker}(A^T A)$. The dimension of the kernel of $A^T A$ is the number of zero singular values of $A$. 
+
+\qed
+
+\begin{definition}
+	[SVD] $A \in \mathbb R^{m \times n}$ with singular values $0 \leq \sigma_1 \leq ... \leq \sigma_n$. Let $r$ denote the rank, or equivalently the number of singular values of $A$. The SVD of $A$ is a decomposition
+	\begin{align}
+		A = U \Sigma V^T
+	\end{align}
+	where 
+	\begin{itemize}
+		\item $U \in \mathbb R^{m \times m}$ orthogonal matrix
+		\item $V \in \mathbb R^{n \times n}$ orthogonal matrix
+		\item $\Sigma \in \mathbb R^{m \times n}$ matrix such that $[\Sigma]_{ii} = \sigma_i$ for $i \in [1, ..., r]$ and $[\Sigma]_{ii} = 0$ for $i > r$.
+	\end{itemize}
+\end{definition}
+
+\begin{theorem} [Computing SVD]
+	Let $A \in \mathbb R^{m \times n}$. Then $A$ has a (non-unique) SVD $A = U \Sigma V^T$,  where
+	\begin{itemize}
+		\item The columns of $V$ are orthonormal eigenvectors of $A^T A$, where $A^T A v_i = \sigma^2 v_i$.
+		\item If $i \leq r$, s.t. $\sigma_i \neq 0$, then the $i$'th column of $U$ is given by $\sigma_i^{-1} A v_i$
+	\end{itemize}
+\end{theorem}
+
+\subsubsection{Illustration of SVD}
+Recall, by \href{https://www.3blue1brown.com/topics/linear-algebra}{3Blue1Brown}, matrix operations transform the coordinate space of some vector.
+\begin{figure*}[h!]
+	\centering
+	\includegraphics[scale=0.6]{figures/linear/linear_nonilinear_transformation.png}
+	\caption{Visualization from \cite{gundersen}}
+\end{figure*} 
+So the only hope we have at visualize the SVD is to use this intuition.\\
+\\
+Let $A \in \mathbb R^{2 \times 2}$.  Let $v_1, v_2 \in \mathbb R^2$ be orthonormal vectors, that is $v_i \cdot v_j = \delta_{ij}$. Say we know how $A$ acts on $v_i$, that is it rotates them to another orthonormal basis $u_i$ and rescales them according to $\sigma_i$.
+\begin{align}
+	A v_1 & = \sigma_1 u_1\\
+	A v_2 & = \sigma_2 u_2
+\end{align}
+We've chosen the notations of these vectors in a very peculiar manner. You can think the SVD as just saying we map vectors in matrix $V$ to vectors in $U$ scaled by $\Sigma$.
+
+But deriving is believing, so let's show that the matrix $A$ emits an SVD where everything lines up. 
+
+
+Consider how $A$ acts on an arbitrary test vector $x$.
+\begin{align}
+	Mx & = M(\langle v_1, x\rangle v_1 + \langle v_2, x\rangle v_2) & \text{Basis}\\
+	& =  Mv_1\, \langle v_1, x\rangle +  M v_2 \, \langle v_2, x\rangle\\
+	& = \sigma_1 u_1  \langle v_1, x\rangle + \sigma_2 u_2\, \langle v_2, x\rangle  & Av_i = \sigma_i u_i\\
+	& = \sigma_1 u_1 v_1^T x + \sigma_2 u_2 v_2^T x & \text{Def of inner product}\\
+	& = (\sigma_1 u_1 v_1^T + \sigma_2 u_2 v_2^T) x
+\end{align}
+Since this holds for an arbitrary test vector
+\begin{align}
+	M = \sigma_1 \, u_1 v_1^T + \sigma_2 \, u_2 v_2^T = \underbrace{(u_1 \ u_2)}_{U} \underbrace{\begin{pmatrix}
+		\sigma_1 & 0 \\
+		0 & \sigma_2
+ 	\end{pmatrix}}_{\Sigma} \underbrace{\begin{pmatrix}
+ 		v_1^T \\ v_2^T
+ 	\end{pmatrix}}_{V^T}
+\end{align}
+
+\subsubsection{Appplication, inference of signals}
+It is said that SVD can pick out "interesting" signals from data. I'll illustrate this with a simple toy model. You have a rank-1 correction to a matrix full of noise, you want to infer this correction \& it's strength. This is called the Spiked Wigner model.
+\begin{align}
+	A = \lambda xx^T + W
+\end{align}
+where $W \sim \text{GOE}(0, \Sigma)$, this means that $\mathbb E[W] = 0$ and $\mathbb E[W^T W] = \sigma^2 \mathbb I$.
+\begin{align}
+	\mathbb E[A^T A] & = \lambda^2 x x^T  x x^T  + \sigma^2 \mathbb I\\
+	& = \lambda^2 x^2 \, xx^T + \sigma^2 \mathbb I
+\end{align}
+The eigensystem for this is
+\begin{itemize}
+	\item One eigenvector $x$, with eigenvalue $ \lambda^2 \|x|^4 + \sigma^2$
+	\item $d-1$ eigenvectors $v$ s.t. $v \perp x$, with eigenvalue $\sigma^2$.
+\end{itemize}
+Recall the SVD $A = U \Sigma V^T$. the $V$ were the eigenvectors of $A^T A$, which we found contains the signal we wanted to infer. The $\Sigma$ contains the eigenvalues of $A^T A$, which contain information on the strength of the signal $\lambda$ and noise $\sigma^2$.
+
+For more technical readers, this is just a heuristic illustration. Don't forget about the BBP phase transition.
+
+
+
+\subsection{Matrix Identities}
+
+\subsubsection{Matrix Calculus}
+
+\subsubsection{Matrix Inversions}
+\begin{fact}[Sherman-Morrison] Let $A$ be an invertible square matrix, and $u,v$ be vectors.  
+	\begin{align}
+		(A + uv^T)^{-1} = A^{-1} + \frac{A^{-1} u v^T A^{-1}}{1 + v^T A^{-1} u} 
+\end{align}
+\end{fact}
+
+\noindent
+\begin{sidework}
+	\emph{Proof:} Here's a constructive proof. Say you want to solve for $x$
+\begin{align}
+	(A + uv^T) x & =  y\\
+	x & = A^{-1} y - A^{-1} u v^T x
+\end{align}
+Notice 
+\begin{align}
+	v^T x & = v^T A^{-1} y - v^TA^{-1} uv^T x\\
+	(1 + v^T A^{-1} u)v^T x & = v^T A^{-1}y\\
+	v^T x & = \frac{v^T A^{-1}}{1 + v^T A^{-1} u} y 
+\end{align}
+Therefore
+\begin{align}
+	x = \left(A^{-1} - \frac{A^{-1} u v^T A^{-1}}{1 + v^T A^{-1} u} \right) y
+\end{align} 
+\qed
+\end{sidework}
+
+The idea is that a rank one perturbation $uv^T$ to a full rank matrix $A$, yields an inverse which is a rank one perturbation to $A^{-1}$.
+
+\begin{fact}
+	[Woodbury] A generalization of the previous fact is
+	\begin{align}
+		(A + UCV)^{-1} = A^{-1} + A^{-1} U (C^{-1} + V A^{-1} U)^{-1} V A^{-1}
+	\end{align}
+	where $A$ is $n \times n$, $C$ is $k \times k$, $U$ is $n \times k$ and $V$ is $k \times n$.
+\end{fact}
+Proof left as exercise.
+
+
+
+\subsection{Time Complexity}
+Since we're talking about these things in the context of a computational class, it'll be good to recap the time complexity of such algorithms. Just keep these in the back of your mind. 
+
+
+\begin{itemize}
+	\item Matrix multiplication: $\mathcal O(n^{2.8})$.
+	\item Matrix inverse implemented in \texttt{numpy.linalg.solve}: $\mathcal O(n^3)$.
+	\item SVD for a $n \times m$ matrix (s.t. $n \leq m$) : $\mathcal O(m n^2)$.
+	\item Determinant $\mathcal O(n^3)$ 
+\end{itemize}
+As a final note, the time complexity of an algorithm doesn't translate to the actual run time of an algorithm.
+\\
+\\
+See \url{https://en.wikipedia.org/wiki/Computational_complexity_of_mathematical_operations#Matrix_algebra} for more information.
+
+
+
+
+
+
+\subsection{References}
+\begin{thebibliography}{9}
+\bibitem{svd}
+Michael Hutchings, Notes on singular value decomposition for Math 54, \url{https://math.berkeley.edu/~hutching/teach/54-2017/svd-notes.pdf}.
+
+\bibitem{gundersen}
+Gregory Gundersen, Singular Value Decomposition as Simply as Possible, \url{https://gregorygundersen.com/blog/2018/12/10/svd/}
+
+\bibitem{lamport94}
+Leslie Lamport (1994) \emph{\LaTeX: a document preparation system}, Addison
+Wesley, Massachusetts, 2nd ed.
+\end{thebibliography}
+
+
+
+
+
+

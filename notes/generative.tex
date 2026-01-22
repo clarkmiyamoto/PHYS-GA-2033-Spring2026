@@ -1,0 +1,47 @@
+\part{Generative Models}
+\section{"Old" Generative Models}
+\subsection{Variational Autoencoders}
+\subsection{Generative Adversarial Networks (GANs)}
+\subsection{Denoising Diffusion Probablistic Models (DDPMs)}
+
+\section{Modern Generative Models}
+
+\subsection{Review of Non-Equilibrium Statistical Mechanics}
+Consider a classical particle at position $X_t$ at time $t$ (usually we use the notation $x(t)$, but I'll use $X_t$ as it's the modern stochastic calculus notation) moving in a potential $V(x)$. The weird thing is this particle appears jittery, it feels a bunch of random forces due to thermal fluctuations
+\begin{align}
+	m \ddot X_t = -V(X_t) + \xi_t
+\end{align}
+
+\subsection{Measure Transport}
+\begin{theorem}
+	[Fokker-Planck Equation] Consider a stochastic process
+	\begin{align}
+		dX_t & = \mu_t(X_t) \, dt + \sigma_t(X_t) \, d W_t\\
+		X_0 & \sim p_{base}
+	\end{align}
+	The stochastic process emits a probability distribution at every points in time (notationally $X_t \sim p_t$), where the distribution $p_t$ satisfies a partial differential equation called the \textbf{Fokker-Planck equation}
+	\begin{align}
+		\partial_t p_t(x) & = - \nabla \cdot (\mu_t(x) \, p_t(x) ) + \frac{1}{2} \sigma^2_t(x) \Delta(p_t(x))\\
+		p_{t=0}(x) & = p_{base}  & \text{(Boundary condition)}
+	\end{align} 
+\end{theorem}
+A small remark, take $\sigma \to 0$ and you recover the transport equation
+\begin{theorem}[Transport Equation]
+	Consider the deterministic process 
+	\begin{align}
+		dX_t  & = \mu(X_t) \, dt\\
+		X_0 & \sim p_{base}
+	\end{align}
+	The associated probability distribution $X_t \sim p_t$ satisfies the partial differential equation called the \textbf{transport equation}
+	\begin{align}
+		\partial_t p_t(x) = -\nabla \cdot (\mu_t(X_t) \, p_t(x))
+	\end{align}
+\end{theorem}
+This increases the design space.
+
+
+\subsection{Score Based Diffusion}
+
+\subsection{Flow Matching}
+
+\subsection{Stochastic Interpolants}

@@ -1,0 +1,41 @@
+\section{Review of Probability}
+
+\begin{definition}
+	[Conditional Probability]
+	\begin{align}
+		\mathbb P[ A | B] = \frac{\mathbb P[A \cap B]}{P[B]}
+	\end{align}
+\end{definition}
+Notice that $\mathbb P[A \cap B] = \mathbb P[B \cap A]$, this allows us to related $\mathbb P[A|B]$ and $\mathbb P[B | A]$.
+\begin{align}
+	\mathbb P[ A | B] & = \frac{\mathbb P[A \cap B]}{P[B]}\\
+	& = \frac{\mathbb P[B \cap A]}{P[B]}\\
+	\Aboxed{\mathbb P[ A | B] & = \frac{\mathbb P[B | A] \, \mathbb P[A]}{\mathbb P[B]} }
+\end{align}
+This is \textbf{Bayes' Formula}.
+
+
+
+\begin{definition}
+	[Probability Density Function] A function with the following properties is a \textbf{probability density}
+	\begin{itemize}
+		\item  Positive: $p : \mathcal X \to \mathbb R_{\geq 0 }$
+		\item  Normalized: $\int_{\mathcal X} p(x) \, dx = 1$
+	\end{itemize}
+	It is interpreted as the probability of observing an event $A \subset \mathcal X$  as
+	\begin{align}
+		\mathbb P[x \in A] = \int_{A \subset \mathcal X} p(x) \, dx
+	\end{align}
+\end{definition}
+
+The nice part of densities is that you can compute statistics with that. I.e. what's the mean, variance.
+\begin{align}
+	\mathbb E_{x \sim p} [f(x)]  =  \int_{\mathcal X} f(x) \, p(x) \, dx
+\end{align}
+
+\begin{definition}
+	[Characteristic Function] Consider the probability distribution $p_X$. It has an associated \textbf{characteristic function} $\varphi_X$  which is it's Fourier Transform
+	\begin{align}
+		\varphi_X(k) = \int_{\mathbb R} e^{ikx} p(x) \, dx = \mathbb E_{x \sim p}[e^{ikx}]
+	\end{align}
+\end{definition}

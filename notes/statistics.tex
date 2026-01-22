@@ -1,0 +1,142 @@
+\section{Review of Statistics \& Loss Functions}
+In machine learning, we adjust a model's parameters $\theta$ to minimize a loss function $\mathcal L(\theta)$. There's a bunch so I think it's nice to hear where they come from. We'll cover
+\begin{itemize}
+	\item Mean squared error (MSE) $$\mathcal L(\theta) = \sum_{i=1}^n\|y_i - f_\theta(x_i)\|^2$$
+	\item Cross entropy $$\mathcal L(\theta) = \sum_{i=1}^n \|$$
+	\item MSE + L2 Regularization (Ridge) $$\mathcal L(\theta) = \sum_{i=1}^n\|y_i - f_\theta(x_i)\|^2_2 + \lambda \|\theta\|^2_2$$
+\end{itemize}
+\subsection{Maximum Likelihood Inference \& Mean Squared Error}
+Say you have the dataset $\mathcal D = \{(y_i, x_i)\}_{i=1}^n$ (which we assume you observed in an iid way). You believe that $y_i$ is a noisy observation of some model $f_\theta(x_i)$. Your objective is to come up with the "best" estimate of the parameter $\theta$ which matches the data $\mathcal D$... You think about it for some while, and realize you maximize the probability of seeing the data for a given $\theta$. This is \textbf{maximum likelihood estimation (MLE)}.\\
+\\
+To illustrate this method (and all others), we have to assume a particular model. So let's say you believe the noise is additive \& gaussian:
+\begin{align}
+	y_i = f_\theta(x_i) + \epsilon_i, \  \text{ where } \epsilon_i \sim_{iid} \mathcal N(0, \mathbb I)
+\end{align}
+Since $\epsilon_i$ is a random variable,  you can interpret $y_i$ as a random variable as well.
+\begin{align}
+	y_i & \sim \mathcal N(f_\theta(x_i), \mathbb I)\\
+	 p(y_i | \theta) & \propto \exp\left( -\frac{1}{2} (y_i - f_\theta(x_i))^2\right)\\
+	 \log  p(y_i | \theta) & = -\frac{1}{2} (y_i - f_\theta(x_i))^2 + \text{Constant w.r.t. } \theta
+\end{align}
+I've wrote the $\log$ prob for reasons that will become clear in a moment. \\
+\\
+Note you have more data $\{(y_i, x_i)\}_{i=1}^n$ (which is all iid), so you actually have a joint distribution.
+\begin{align}
+	p(y_1, ..., y_n | \theta) = \prod_i p(y_i | \theta)
+\end{align}
+We'll call this the \textbf{likelihood} $L(\theta)$ (that is the likeliness / probability of seeing the data given a configuration of model parameters). For MLE, you choose $\hat \theta$ which maximizes the likelihood. However $\arg \max$ of a product of functions is quite difficult, we can compose the function w/ a monontonic function, and that leaves the $\arg \max$ invariant.
+\begin{align}
+	\log L(\theta) & = \log p(y_1,..., y_n | \theta)\\
+	& = \sum_i \log p(y_i | \theta)\\
+	& \propto \sum_i (y_i - f_\theta(x_i))^2 
+\end{align}
+This recovers the MSE loss.
+
+\subsection{Cross Entropy \& Another MLE}
+
+\subsection{L2 Regularization}
+In Bayesian statistics, instead of asking what's the probability of seeing the data given a model parameter, we ask \emph{what's the probability of seeing a model parameter given the data?} We can formalize the inverse question using Bayes' theorem
+\begin{align}
+	p(\theta | y) = \frac{p(y | \theta) p(\theta)}{p(y)}
+\end{align} 
+\begin{itemize}
+	\item $p(\theta)$ is your prior. It encodes your prior beliefs into the distribution.
+	\item $p(y | \theta)$ is the likelihood (from the previous sections)
+	\item $p(\theta | y)$ is the posterior. It accounts for your prior beliefs \& what the data says (likelihood).
+	\item $p(y)$ is the evidence. I won't say much about it today.
+\end{itemize}
+If you ask, what's the parameter maximizes the posterior (probability of seeing a parameter given the data), this is called \textbf{maximum aposteriori estimation (MAP)}.
+\begin{align}
+	\hat \theta_{MAP} = \arg \max_\theta p(\theta | y)
+\end{align}
+For an example, let's assume we have the additive noise model
+\begin{align}
+	y_i = f_\theta(x_i) + \epsilon_i
+\end{align}
+and that you believe the weights should look distributed according to a Gaussian
+\begin{align}
+	p(\theta) = \mathcal N(0, \lambda^{-1} \mathbb I)
+\end{align}
+You can see that log posterior has the form
+\begin{align}
+	\log p(\theta | y) = \sum_i \| y_i - f_\theta(x_i)\|^2 +  \lambda \|\theta\|^2
+\end{align}
+
+\subsection{Minimizing the loss function}
+\begin{itemize}
+	\item The value of the MSE, in a traditional statistics setting, tells you about the uncertainity quantification of the model. However ML models tend to not obey this.
+	\item Difficulty of optimizing via oracle access.
+	\item However! Do you even want to perfectly minimize the loss function? Memorization.
+\end{itemize}
+
+
+
+
+
+
+\section{Linear Regression}
+Consider making iid noisy observations of data $\{(x_i, y_i)\}_{i=1}^n$, where $x_i \in \mathbb R^p$ and $y_i \in \mathbb R$. We'll assume that the noise is additive, that is
+\begin{align}
+	y_i = f(x_i) + \epsilon_i
+\end{align}
+where $f(x) = \beta^T x$ is the model (we've assumed it's linear for this discussion) and the noise is gaussian $\epsilon_i = \mathcal N(0, \sigma_i^2)$ (which is another assumption for this discussion). Since $\epsilon_i$ is a random variable, this implies that $y_i$ is also a random variable
+\begin{align}
+	y_i | \beta  = \mathcal N(y_i; \beta^T x_i, \sigma_i^2)
+\end{align}
+This is just one observation, but in fact, we have a joint distribution $p(y | x) \equiv p(y_1, ..., y_N | x_1, ..., x_N)$ over all observations, which we'll call the \textbf{likelihood}. Since observations are iid, it factorizes.
+\begin{align}
+	p(y|\beta) & = \prod_i p(y_i| x_i)
+\end{align}
+Your task is to find the $\beta$ which "best" describes the data. I'll note that "best" is subjective and we'll discuss consequences of this later.
+
+\subsection{Frequentist, Maximum Likelihood Estimator}
+One method is \textbf{maximum likelihood estimation}, that is you selct the parameters which is the global maximizer of the likelihood. Why? Just read off what you're doing: adjust $\beta$ s.t. the probability of having this combination of $y$'s (given $x$'s) is highest.
+\\
+\\
+Apart from being very intuitive, there are also strong theoretical guaranties (which I won't have time to prove) (Notation: when I generically talk about model parameters, we use $\theta$)
+\begin{itemize}
+	\item Consistency: $\lim_{n \to \infty }\hat \theta_n = \theta$
+	\item Normality: $\hat \theta_n \sim \mathcal N(0, \mathcal I)$ (where $\mathcal I$ is the fisher information matrix)
+	\item Efficiency: $\text{Var}(\hat \theta) \geq 1/\mathcal I(\theta)$.
+\end{itemize} 
+Since $\arg\max$ is invariant under compositions of monotonic functions, we can maximize the log-likelihood which emits a nicer function
+\begin{align}
+	\log p(y | x) & = \sum_i \log p(y_i| x_i) \\
+	& = \sum_i \log \mathcal N(y_i ; \beta^T x_i , \sigma_i^2)\\
+	& = \sum_i - \frac{1}{2}\frac{\left(y_i - \beta^T x_i \right)^2}{\sigma_i^2} + \text{Constant}
+\end{align}
+A small comment, this is why you "minimize the squared error" when fitting straight lines in lab, you have been secretly doing maximum likelihood inference this whole time. Notice this is a quadratic form, so you can rewrite it using matrix multiplication
+\begin{align}
+	\sum_{i=1}^n (y_i - \beta^T x_i)^2 / \sigma_i^2 & = (y - X \beta)^T \Sigma^{-1} (y - X \beta)\\
+	\text{where: } y & = \begin{pmatrix}
+		y_1 \\ \vdots \\ v_n
+	\end{pmatrix} \in \mathbb R^n,  \\
+	\beta & =  \begin{pmatrix}
+		\beta_1 \\ \vdots \\ \beta_p
+	\end{pmatrix}\in \mathbb R^p\\
+	\Sigma & = \text{diag}(\sigma_1^2 , ..., \sigma_n^2) \in \mathbb R^{n \times n}\\
+	X & = \begin{pmatrix}
+		- \ x_1^T \ - \\
+		- \ x_2^T \ - \\
+		\vdots \\
+		- \ x_n^T \ -
+	\end{pmatrix} \in \mathbb R^{n \times p}
+\end{align}
+From here we can find the argmax of the quantity
+\begin{align}
+	0 = \frac{\partial \log p(y |x)}{\partial \beta} \Big|_{\beta = \hat \beta} & = X^T \Sigma^{-1} (y - X \beta)\\
+	\implies X^T \Sigma^{-1} y & = X^T \Sigma^{-1} X \hat \beta\\
+	\Aboxed{\hat \beta_{MLE} & =  (X^T \Sigma^{-1} X)^{-1} X^T \Sigma^{-1} y}
+\end{align}
+and find the maximum likelihood estimate for $\beta$. 
+
+Now we can talk about inference. Say your boss gives you new data $X_*$, and you're asked what is the corresponding $\hat y_*$. You'll report back
+\begin{align}
+	\boxed{\hat y_* = X_* \hat \beta_{MLE}}
+\end{align}
+
+\subsection{Bayesian Linear Regression}
+In the Bayesian framework, you're asked what is the probability of seeing the model parameters \emph{given} the data $p(\beta | y)$. You can calculate this using Bayes's formula
+\begin{align}
+	p(\beta | y) = \frac{p(y  | \beta) p(\beta)}{p(y)}
+\end{align}
