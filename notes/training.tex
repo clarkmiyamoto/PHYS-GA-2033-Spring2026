@@ -1,0 +1,43 @@
+\section{PyTorch 101}
+\subsection{Training Dynamics}
+Thinking of back-propagation as a high-level chain rule is not enough to get a neural network to train. For example, here's some food for thought...
+\begin{itemize}
+	\item We want to $\arg\min_\theta \mathcal L(\theta)$, what scheme do you implement? Note that $\mathcal L(\theta)$ implicitly depends on the data and model architecture, so perhaps that'll affect your answer.
+	\item In the model architecture, how do you initialize the model weights?
+\end{itemize}
+
+\subsection{Whitening}
+The following analysis will assume the data distribution $\mathcal D = \{x^{(i)}\}_i \sim^{iid} p_{data}$, has vanishing $\mathbb E[x^{(i)}] = 0$ and covariance $\mathbb E[x^{(i)}x^{(i)T} ] = \sigma^2 \mathbb I$.
+
+You might ask, is it this a fair assumption, and the answer is totally. You can always transform data to have these properties.
+
+Consider the data matrix $X \in \mathbb R^{b \times d}$ (each row is a $d$-dimensional data point)
+\begin{align}
+	X \equiv \begin{pmatrix}
+		- & x^{(1)} & -\\
+		\vdots  & \vdots & \vdots\\
+		- & x^{(b)} & -
+	\end{pmatrix}
+\end{align}
+
+\subsection{Back propagation}
+Using the rules from our matrix cheat sheet. Let $x \in \mathbb R^{m}$. Consider a linear layer 
+\begin{align}
+	\text{Linear}& : \mathbb R^{m} \to \mathbb R^{n}\\
+	z(x) = \text{Linear}(x) & = Wx + b\\
+	\frac{\partial}{\partial W_{ij}}  \text{Linear}(x)& = x_j\\
+	\frac{\partial}{\partial W_{ij}}  \sigma(z)
+\end{align}
+
+
+
+\subsection{Weight Initialization}
+As you propogat
+
+
+
+
+
+\subsection{PyTorch Tutorial}
+See \texttt{pytorch_tutorial.ipynb} in the repo.
+\newpage

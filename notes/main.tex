@@ -64,7 +64,47 @@
   skipbelow=\topsep
 ]{sidework} %% Side-work
 
-\usepackage{lipsum} % Lorem Ipsum example text
+\newcounter{problem}
+\NewDocumentEnvironment{problem}{o}{%
+  \refstepcounter{problem}%
+  \IfNoValueTF{#1}
+    {\def\problem@title{Problem~\theproblem}}
+    {\def\problem@title{Problem~\theproblem ~(#1)}}%
+  \begin{mdframed}[
+    linecolor=black,
+    linewidth=0.5pt,
+    backgroundcolor=blue!2.5,
+    innertopmargin=0pt,
+    innerbottommargin=10pt,
+    innerleftmargin=10pt,
+    innerrightmargin=10pt,
+    frametitlefont=\bfseries,
+    frametitle=\problem@title,
+  ]
+}{%
+  \end{mdframed}
+} % Practice problem environment
+
+\newcounter{answer}
+\NewDocumentEnvironment{answer}{o}{%
+  \refstepcounter{answer}%
+  \IfNoValueTF{#1}
+    {\def\answer@title{Answer~\theanswer}}
+    {\def\answer@title{Answer~\theanswer ~(#1)}}%
+  \begin{mdframed}[
+    linecolor=black,
+    linewidth=0.5pt,
+    backgroundcolor=green!2.5,
+    innertopmargin=0pt,
+    innerbottommargin=10pt,
+    innerleftmargin=10pt,
+    innerrightmargin=10pt,
+    frametitlefont=\bfseries,
+    frametitle=\answer@title,
+  ]
+}{%
+  \end{mdframed}
+}
 
 %%%%% ------------------ %%%%%
 %%% Title
@@ -81,8 +121,12 @@
 \newpage
 
 
-\input{linearalgebra.tex}
+\input{linear.tex}
 \newpage
+
+\input{training.tex}
+\newpage
+
 
 \input{probability.tex}
 \input{statistics.tex}
