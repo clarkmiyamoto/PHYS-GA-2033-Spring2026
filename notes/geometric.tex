@@ -1,0 +1,17 @@
+\section{Convolutional Neural Networks}
+
+\section{Graph Neural Networks}
+\begin{definition}
+	[Graph] A graph $G = (V,E)$ is two sets. 
+	\begin{itemize}
+		\item $V = \{v_1, ..., v_N\}$ are the vertexes / nodes. At each node $v_i$ a vector of features is attached $\mathbf h_i \in \mathbb R^d$. 
+		\item $E \subseteq V \times V$ are the dedges.
+	\end{itemize}
+	We represent connectivity using an adjacency matrix
+	\begin{align}
+		A_{ij} = \begin{cases}
+			1 & (v_i, v_j) \in E\\
+			0 & \text{else}
+		\end{cases}
+	\end{align}
+\end{definition}

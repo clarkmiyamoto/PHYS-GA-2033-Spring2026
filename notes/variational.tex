@@ -1,0 +1,151 @@
+\section{Variational Inference}
+There were a couple of bottlenecks on MCMC
+\begin{enumerate}
+	\item If the query time for the likelihood is quite long, then sampling the distribution will take very long.
+	\item In multimodal distributions, we have no guarantees when the chains will mix / find other mode, so MCMC may fail in that regime. Note, multimodal is NP-hard so this new technique won't entirely solve it.
+\end{enumerate}
+Instead, what if you attempted to approximate the target distribution, in such a way it was easy to sample? As physicists, this must sound familiar to you. Recall the variational principle from quantum mechanics.
+\begin{align}
+	\langle \psi_\theta | H | \psi_\theta \rangle \geq E_{gs}
+\end{align}
+where $\psi_\theta$ is a trial wave function. You $\arg \min_\theta \langle \psi_\theta | H | \psi_\theta \rangle$ in an attempt to find the ground state. But let me restate this in a more statistical language. You parameterize your probability distribution (wave function) via a neural network, and you adjust the parameters to minimize the discrepancy between  the parameterized distribuiton \& the target distribution.
+
+This now raises questions
+\begin{enumerate}
+	\item Are there "distance" measurements between probability distributions? Which one should I pick as a loss function?
+	\item How can parameterize a probability distribution in a very flexible way s.t. (1) I can sample it easily, (2) perhaps I can even evaluate it's log-probability?
+\end{enumerate}
+
+
+
+\subsection{Distance of Probability Measures}
+There are couple ways to measure the distance between probability measures. Each is good for a certain context. A (very) non-exhaustive list
+\begin{itemize}
+	\item Total Variation distance 
+		\begin{align}
+			\| p - q\|_{TV} = \frac{1}{2} \int |p(x) - q(x) | \, dx
+		\end{align}
+		\emph{Comments:} It's an $L_1$ bound on the distributions, so if you don't care about the moments but making sure the spaces are close, then it's good. However, you can NOT bound moments using this...
+	\item Kullback-Leibler divergence
+		\begin{align}
+			\text{KL}(p\|q) = \int p(x) \, \log \frac{p(x)}{q(x)} \, dx
+		\end{align}
+		Note this is not symmetric, hence why we don't call it a distance but instead a divergence.
+		
+		\emph{Comments:} It's easy to numerically compute. You can rewrite it as
+		\begin{align}
+			\text{KL}(p \| q) = \mathbb E_{x\sim p} [\log p(x)] - \mathbb E_{x\sim p}[\log q(x)].
+		\end{align}
+		In computation, you usually have access to log-probabilities, and you can approximate the expectation using a sampling technique. Also, the KL is related to the TV distance by Pinsker's inequality: $\|p - q\|_{TV} \leq \sqrt{\frac{1}{2} \text{KL}(p \| q)}$. 
+	\item Wasserstein Distance
+		\begin{align}
+			W_p(p,q) = \sup_{\gamma \in \Gamma} \int \| x- y \|^p \, d\gamma(x,y)^{1/p}
+		\end{align}
+		where $\Gamma$ is the set of couplings on $p,q$. A coupling $\gamma(p,q)$ is defined a joint probability distribution s.t. it marginalizes to recover $p,q$; $\int \gamma(p(x), q(y)) dx = q(y)$ and vice versa.
+		
+		\emph{Comments:} This is considered the most natural way to compare distributions. You can also bound moments, unlike the TV distance.
+\end{itemize}
+
+Any of these measurements will equal zero i.f.f. the two distributions are equal, and  they're all non-negative. Making them good loss functions for neural networks. As hinted earlier, the KL Divergence will be preferred for computational easyness. The question becomes which argument do the, parameterized distribution $p_\theta$ and target distribution $\pi$, go?
+\begin{align}
+	\KL(p_\theta \| \pi) & = \int p_\theta(x) \log \frac{p_\theta(x)}{\pi(x)} \, dx =  \mathbb E_{x \sim p_\theta} [\log p_\theta(x) ] - \mathbb E_{x \sim p_\theta} [\log \pi(x)]\\
+	\KL(\pi \| p_\theta) & = \mathbb E_{x \sim \pi} [\log \pi(x)] - \mathbb E_{x \sim \pi}[\log p_\theta(x)]
+\end{align}
+
+
+
+\section{Normalizing Flows}
+To get variational inference to work better than just MCMC, here's a couple things I want
+\begin{enumerate}
+	\item I want IID samples
+	\item Ability to evaluate the normalized log-probability of the target distribution.
+\end{enumerate}
+Points (2) and (3) give us a hint as to a potential solution. Imagine constructing a map between an easy to evaluate distribution (i.e. Gaussian) and your target distribution, then transporting sampling according to this map. A potential problem is an approximate map will yield bias in your final answer (I'll touch upon this later).
+
+An example of this is the Box-Muller transformation. Your base distribution $\nu = \text{Unif}(0,1]^2$, and you construct a map which maps you to a target distribution $\pi = \mathcal N(0, \mathbb I_2)$. So if you sample $u \sim \nu$, we can use an invertible function $f(u) = z \sim \pi$. Since $f(u)$ actually is equal in distribution to $\pi$ then if you can sample $\nu$ iid (which you can), then you automatically sample $\pi$ iid.  For completeness, here's the map
+\begin{align}
+	\begin{pmatrix}
+		z_1 \\ z_2
+	\end{pmatrix} = f \begin{pmatrix}
+		u_1 \\ u_2
+ 	\end{pmatrix} = \begin{pmatrix}
+ 		\sqrt{-2 \log u_1} \cos(2\pi u_2) \\ \sqrt{-2 \log u_1} \sin(2\pi u_2)
+ 	\end{pmatrix} 
+ \end{align}
+Evaluating the log-prob of the samples is trivial for a gaussian (just plug the realization $z$ of the target distribution into $\propto e^{-x^2/2}$). But what if you didn't have oracle access to the target distribution? Consider how you'd evaluate probability distributions under a change of variables
+\begin{align}
+	\int \pi(z) dz & = \int \nu(u) du = 1 \\
+	\int  \pi(f(u)) \left | \det \frac{d f}{du} \right | \, du & = \int \nu(u) du\\
+	\pi(f(u)) \left | \det \frac{d f}{du} \right | & = \nu(u)\\
+	\log \pi(z) & =  \log \nu(f^{-1}(z))  - \log | \det \frac{\partial f}{\partial u }|_{u = f^{-1}(z)} |
+\end{align}
+This means you can evaluate $\log \pi(z)$ (normalization included) by moving the generated samples back to the base distribution.
+
+The idea of normalizing flows is to parameterize the change-of-variables / push-forward via a neural network. We usually use the base distribution $z \sim \nu = \mathcal N(0, \mathbb I_d)$ and the target distribution $x \sim \pi$. 
+\begin{align}
+	x & = f_L \circ f_{L-1} \circ ... \circ  f_1(z)\\
+	\log  \pi(x) & = \log \pi_0(z_0) - \sum_{i=1}^L \log \left | \det \frac{df_i}{dz_{i-1}}\right|
+\end{align}
+When we parameterize $f$ with a neural network, we need to construct layers that are:
+\begin{enumerate}
+	\item Easily invertible. Keep in mind that matrix inverses are more expensive than matrix multiplications.
+	\item The Jacobian is easily computable
+\end{enumerate}
+
+
+
+\subsection{Architectures}
+\subsubsection{RealNVP}
+Real Non-Volume Preserving implements the following function $\mathbf x \mapsto \mathbf y$. It splits into two section, $\mathbf x_{1:d} \equiv (x_1, ..., x_d)$ stays in the same, and $\mathbf x_{d+1: D}$ is modified
+\begin{align}
+	\mathbf y = \begin{pmatrix}
+		\mathbf y_{1:d}\\ \mathbf y_{d+1: D}
+	\end{pmatrix}  = \begin{pmatrix}
+		\mathbf x_{1:d}\\ \mathbf x_{d+1:D} \odot  \exp(s(\mathbf x_{1 :d})) + t(\mathbf x_{1:d})
+	\end{pmatrix}
+\end{align}
+where $\odot$ is element wise multiplication, and the $s, t$ functions are applied element-wise as well. To solve for the inverse treat everything as scalars, and you get
+\begin{align}
+	\mathbf x = \begin{pmatrix}
+		\mathbf x_{1:d} \\ \mathbf x_{d+1:D}
+	\end{pmatrix} = \begin{pmatrix}
+		\mathbf x_{y:d} \\ (\mathbf y_{d+1:D} - t(\mathbf y_{1:d})) \odot \exp(- s(\mathbf y_{1:d}))
+	\end{pmatrix}
+\end{align}
+What's really nice is that you don't need to invert $s,t$, so they themselves can be anything-- we will parameterize them by neural networks. As for the Jacobian...
+\begin{align}
+	\frac{d\mathbf y}{d \mathbf x} & = 
+	\begin{pmatrix}
+		\frac{d\mathbf y_{1:d}}{d \mathbf x_{1:d}} & \frac{d \mathbf y_{1:d}}{d \mathbf x_{d+1:D}}\\
+		\frac{d\mathbf y_{d+1:D}}{d \mathbf x_{1:d}} & \frac{d\mathbf y_{d+1:D}}{d \mathbf x_{d+1:D}}
+	\end{pmatrix}\\
+	& = \begin{pmatrix}
+		\mathbb I_d  & 0 \\
+		\frac{d\mathbf y_{d+1:D}}{d \mathbf x_{1:d}}  & D 
+	\end{pmatrix}
+\end{align}
+where $[D]_{ii} = \exp([s(\mathbf x_{1:d})]_i)$.
+You can see that this split $\mathbf y = (\mathbf y_{1:d} , \mathbf y_{d+1: D})$ was to make the Jacobian triangular, allowing for a speedy evaluation. In particular just the determinant matters, so the nasty bottom left entry disappears. Since the resulting Jacobian is diagonal, 
+\begin{align}
+	\log \det \frac{d\mathbf y}{d\mathbf x} = \log \prod_{i=1}^d \exp([s(\mathbf x_{1:d}]_i) = \sum_{i=1}^d [s(\mathbf x_{1:d})]_i
+\end{align}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

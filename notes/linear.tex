@@ -1,4 +1,5 @@
 \section{Review of Linear Algebra}
+Here's some linear algebra that you might not have learned in a regular class.
 
 \subsection{Singular Value Decomposition}
 Recall the eigen-decomposition of a matrix. Given a symmetric square matrix $A \in \mathbb R^{d\times d}$ with eigenvalues $\{\lambda_i\}_i$ and eigenvectors $\{e_i\}_i$. The matrix could be re-expressed as
@@ -96,7 +97,7 @@ It is said that SVD can pick out "interesting" signals from data. I'll illustrat
 \begin{align}
 	A = \lambda xx^T + W
 \end{align}
-where $W \sim \text{GOE}(0, \Sigma)$, this means that $\mathbb E[W] = 0$ and $\mathbb E[W^T W] = \sigma^2 \mathbb I$.
+where $W \sim \text{GOE}(n)$, this means that on-diagonal entires $W_{ii} \sim \mathcal N(0, 2)$, and off-diaongal entries $W_{ij} = W_{ji} \sim \mathcal N(0,1)$. For such a matrix, the expectation value element-wise yields: $\mathbb E[W] = 0$ and $\mathbb E[W^T W] = \sigma^2_n \mathbb I$.
 \begin{align}
 	\mathbb E[A^T A] & = \lambda^2 x x^T  x x^T  + \sigma^2 \mathbb I\\
 	& = \lambda^2 x^2 \, xx^T + \sigma^2 \mathbb I
@@ -108,8 +109,7 @@ The eigensystem for this is
 \end{itemize}
 Recall the SVD $A = U \Sigma V^T$. the $V$ were the eigenvectors of $A^T A$, which we found contains the signal we wanted to infer. The $\Sigma$ contains the eigenvalues of $A^T A$, which contain information on the strength of the signal $\lambda$ and noise $\sigma^2$.
 
-For more technical readers, this is just a heuristic illustration. Don't forget about the BBP phase transition.
-
+For those who know random matrix theory, you are probably skeptical due to BBP transition. This calculation doesn't ask whether you can infer $xx^T$ from a single observation of $Y$, it's given infinite observations here's what you expect
 
 \subsection{Matrix Calculus}
 In the next week you'll have to optimize your neural network. Optimization scheme rely on gradient access to your target function, so you'll have to learn how to compute derivatives of vectors \& such.
@@ -254,7 +254,6 @@ See \url{https://en.wikipedia.org/wiki/Computational_complexity_of_mathematical_
 
 
 
-\subsection{References}
 \begin{thebibliography}{9}
 \bibitem{svd}
 Michael Hutchings, Notes on singular value decomposition for Math 54, \url{https://math.berkeley.edu/~hutching/teach/54-2017/svd-notes.pdf}.

@@ -1,47 +1,86 @@
-\part{Generative Models}
-\section{"Old" Generative Models}
-\subsection{Variational Autoencoders}
-\subsection{Generative Adversarial Networks (GANs)}
-\subsection{Denoising Diffusion Probablistic Models (DDPMs)}
+\section{Review of Stochastic Differential Equations}
+You've probably heard of SDEs before, but they aren't covered in the main-stream physics education. So I'll attempt to do a brief introduction. 
 
-\section{Modern Generative Models}
-
-\subsection{Review of Non-Equilibrium Statistical Mechanics}
-Consider a classical particle at position $X_t$ at time $t$ (usually we use the notation $x(t)$, but I'll use $X_t$ as it's the modern stochastic calculus notation) moving in a potential $V(x)$. The weird thing is this particle appears jittery, it feels a bunch of random forces due to thermal fluctuations
+There was a botanist studying pollen grains in water. He noticed the motion was jittery, moving randomly in all directions. You can imagine a heuristic model being
 \begin{align}
-	m \ddot X_t = -V(X_t) + \xi_t
+	X_{t+h} = X_t + h^\alpha \, z_t
+\end{align}
+where $z_t \sim \mathcal N(0, \mathbb I)$ (iid at every time $t$) is random noise, and $h$ is the step size (according to the time-discretization) to the power $\alpha$. In an attempt to find a continuous time model in the limit $h \to 0$ (discretization goes to zero), I'll recurse to time zero.
+\begin{align}
+	X_{t} &= X_{t-h} + h^\alpha \, z_{t-h}\\
+	& = X_{t-2h} + h^\alpha \, (z_{t-2h} + z_{t-h})\\
+	& = X_{t-3h} + h^\alpha \, (z_{t-3h} + z_{t-2h} + z_{t-h})\\
+	& = X_0 + h^\alpha \sum_{n=1}^{t/h } z_{t - nh}
+\end{align}
+Since we're physicists, let's center the initial position $X_0 = 0$. We now note that
+\begin{align}
+	h^\alpha \, \sum_{n=1}^{t/h  + 1} z_{t - nh} \sim   \mathcal N(\left(0, h^{2\alpha - 1} t \right)
+\end{align}
+To keep the model independent on the size of the discretization, I'll choose $\alpha = 1/2$. Leaving us with
+\begin{align}
+	X_t - X_0 \sim \mathcal N(0, t)
+\end{align}
+This was quite heuristic, but we have some take aways. When making an infinitesimal that behaves randomly, it has units $\sqrt{dt}$.
+
+Now that we have some intuition for the system, we can develop something more rigorous.
+\begin{definition}
+	[Weiner Process / Brownian Motion] Brownian motion $(W_t)_{t\geq 0}$ is a stochastic process such that
+	\begin{enumerate}
+		\item Initializes at zero: $W_0 = 0$
+		\item Normal increments: $W_t - W_s \sim \mathcal N(0,(t-s) \mathbb I)$, for $ 0 \leq s \leq t$.
+		\item Independent increments: $W_{t_1} - W_{t_0}$ is independent from $W_{t_i} - W_{t_j}$.
+	\end{enumerate}
+\end{definition}
+The idea of a stochastic differential equations is to extend the dynamics of ODEs to the dynamics where you have random fluctuations of force. Such things are no-where differentiable, so how can we recover a derivative-esq operation w/o using a derivative? Well ODEs  have that
+\begin{align}
+	\frac{dX_t}{dt} = \mu_t(X_t) \implies X_{t+h} = X_t + h\, u_t(X_t) + \mathcal O(h^2)
+\end{align}
+Similarly for an SDE (ODE with stochastic fluctuations)
+\begin{align}
+	X_{t+h} = X_t + X_t + h u_t(X_t)  + (W_{t+h} - W_t) \, \sigma_t(X_t) + \mathcal O(h^{3/2}) \label{eqn:SDETrue}
+\end{align}
+The $\mathcal O(h^{3/2})$ is due to fluctuations on the order $h \, (W_{t+h} - W_t)$, as we've noted that $W_{t+h} - W_t$ is order $\sqrt{h}$. 
+
+For brevity, we'll use a shorthand for \ref{eqn:SDETrue}
+\begin{align}
+	dX_t = \mu_t(X_t) \, dt + \sigma_t(X_t)\, dW_t
 \end{align}
 
-\subsection{Measure Transport}
 \begin{theorem}
-	[Fokker-Planck Equation] Consider a stochastic process
+	[Fokker-Planck Equation]
+	Consider the stochastic differential equation
 	\begin{align}
-		dX_t & = \mu_t(X_t) \, dt + \sigma_t(X_t) \, d W_t\\
-		X_0 & \sim p_{base}
+		dX_t & = \mu_t(X_t) \, dt + \sigma_t dW_t\\
+		X_0 & \sim p_0 & \text{Boundary condition}
 	\end{align}
-	The stochastic process emits a probability distribution at every points in time (notationally $X_t \sim p_t$), where the distribution $p_t$ satisfies a partial differential equation called the \textbf{Fokker-Planck equation}
+	where $\mu_t : [0,1] \times \mathbb R^d \to \mathbb R^d$ and $\sigma_t : [0,1] \to \mathbb R^d$ are deterministic functions. Then the corresponding probability distribution $X_t \sim p_t$ solves a partial differential equation of the following form
 	\begin{align}
-		\partial_t p_t(x) & = - \nabla \cdot (\mu_t(x) \, p_t(x) ) + \frac{1}{2} \sigma^2_t(x) \Delta(p_t(x))\\
-		p_{t=0}(x) & = p_{base}  & \text{(Boundary condition)}
-	\end{align} 
-\end{theorem}
-A small remark, take $\sigma \to 0$ and you recover the transport equation
-\begin{theorem}[Transport Equation]
-	Consider the deterministic process 
-	\begin{align}
-		dX_t  & = \mu(X_t) \, dt\\
-		X_0 & \sim p_{base}
-	\end{align}
-	The associated probability distribution $X_t \sim p_t$ satisfies the partial differential equation called the \textbf{transport equation}
-	\begin{align}
-		\partial_t p_t(x) = -\nabla \cdot (\mu_t(X_t) \, p_t(x))
+		\partial_t p_t(x) & = - \nabla \cdot (\mu_t\, p_t) + \frac{\sigma_t^2}{2} \Delta p_t\\
+		p_{t=0} & = p_0 & \text{Boundary condition}
 	\end{align}
 \end{theorem}
-This increases the design space.
+\begin{sidework}
+	\emph{Proof:}  Since $X_t$ is a random variable, it has a corresponding probability density function. I'll notate this as $p_t$. Now you need to show that $p_t$ have a the corresponding time evolution. The trick to do this, is to recall the trick you employ when you show something is secretly a delta function. You would integrate it against a test function $f(x)$ and show it behaved as expected. We'll do the same thing.
+\begin{align}
+	\partial_t \mathbb E[f(X_t)] & = \lim_{h \to 0} \frac{1}{h} \mathbb E[f(X_{t+h}) - f(X_t)] \\
+	& = \lim_{h \to 0} \mathbb E[\nabla f^T\, u_t(X_t) + \frac{\sigma^2_t}{2} \Delta f(X_t) + \mathcal O(h)]\\
+	& = \int \nabla f^T (x) u_t(x) p_t(x) +  \frac{\sigma^2_t}{2} \Delta f(x)  p_t(x) \, dx\\
+	& = \int -f(x) \, \nabla \cdot (u_t(x) p_t(x)) + f(x) \frac{\sigma^2_t}{2} \Delta p_t(x)\, dx
+\end{align}
+On the LHS
+\begin{align}
+	\partial_t \mathbb E[f(X_t)] = \int f(x) \partial_t p_t(x) \, dx
+\end{align}
+Put LHS = RHS, and you're done. $\hfill \Box$
+\end{sidework}
+As a side note, this proof is typically done using Ito's lemma, and (I think) it holds in weak-convergence. This proof uses the Euler Maruyama, and taking $h \to 0$ gives strong convergence (which in turn implies weak-convergence). 
 
 
-\subsection{Score Based Diffusion}
 
-\subsection{Flow Matching}
 
-\subsection{Stochastic Interpolants}
+
+
+
+\section{Score Based Diffusion}
+
+\section{Stochastic Interpolants}

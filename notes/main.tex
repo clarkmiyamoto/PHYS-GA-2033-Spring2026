@@ -14,6 +14,8 @@
 \usepackage{amsmath} % Math formatting
 \numberwithin{equation}{section} % Number equation per section
 \DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\KL}{KL}
+
 
 
 \newtheorem{theorem}{Theorem}
@@ -113,32 +115,34 @@
 \date{\today}
 \begin{document}
 
+
 \maketitle
+
+\begin{abstract}
+	Machine learning is important for obvious reasons, but physicist often only know the heuristics reasons for certain ML design decisions.but the exact implementation
+\end{abstract}
 
 \tableofcontents
 
 
 \newpage
 
-
+\part{Mathematics}
 \input{linear.tex}
 \newpage
-
-\input{training.tex}
-\newpage
-
 
 \input{probability.tex}
 \input{statistics.tex}
 
 
+\newpage
+\part{Supervised Learning}
+\input{training.tex}
+\newpage
+
+\input{geometric.tex}
 
 
-\section{Double Descent}
-
-
-\subsection{Soft Inductive Biases}
-Another way to conceptualize this is \textbf{soft inductive biases} (see Andrew Gordon Willson's paper \url{https://arxiv.org/pdf/2503.02113}). 
 
 
 
@@ -148,6 +152,10 @@ Another way to conceptualize this is \textbf{soft inductive biases} (see Andrew 
 \subsection{$\mu$P Optimizer}
 \section{Geometric Deep Learning}
 
+
+\newpage
+\part{Probabilistic Inference}
+\input{variational.tex}
 \input{generative.tex}
 
 
