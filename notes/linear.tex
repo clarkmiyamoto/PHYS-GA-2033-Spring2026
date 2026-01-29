@@ -233,21 +233,90 @@ The idea is that a rank one perturbation $uv^T$ to a full rank matrix $A$, yield
 Proof left as exercise.
 
 
+\subsubsection{Example: Maximum Likelihood of Gaussian}
+In the lecture, you saw the linear model
+\begin{align}
+	y = X \beta + \epsilon
+\end{align}
+where $\beta \in \mathbb R^{p \times 1}, X \in \mathbb R^{n \times p},$ and $\epsilon \sim \mathcal N(0, \Sigma)$. And $n$ is the number of observed data points, and $p$ is the number of model parameters.
 
-\subsection{Time Complexity}
+You were probably thinking wtf is Hogg computing, so I'll walk through that. Basically this model defines a probability $p(y | \beta)$ (probability of seeing the data $\mathcal D = (X,y)$, given the model's parameter $\beta$). The idea is to maximize the probability of seeing the data, by adjusting the model's parameters. The model parameter $\hat \beta$ this procedure yields is called the \textbf{maximum likelihood estimator (MLE)}.
+\begin{align}
+	\hat \beta = \arg \max_\beta p(y|\beta) 
+\end{align}
+
+So first let's construct $p(y | \beta)$. Using our rules of Gaussians, if $\epsilon \sim \mathcal N(0, \Sigma)$, then
+\begin{align}
+	y - X\beta = \epsilon \sim \mathcal N(0, \Sigma) \implies y \sim \mathcal N(X\beta, \Sigma)
+\end{align}
+Now we can write out $p(y | \beta)$ exactly. Let's write the log form, because argmax is invariant under monotonic functions.
+\begin{align}
+	\log p(y | \beta) &= - \frac{1}{2}(y - X \beta)^T \Sigma^{-1} (y - X \beta) + \text{Constant w.r.t } \beta
+\end{align}
+\begin{sidework}
+	Side comment: Obviously we'll analytically argmax this, but you could write it in a numerical optimization way. Let's do this in the simple case where the error is the same $\Sigma = \mathbb I$. 
+	\begin{align}
+		\log p(y |\beta) \propto - \frac{1}{2} (y - \hat y)^2 = \sum_{i} (y_i - \hat y_j)^2
+	\end{align}
+	I've notated $\hat y = X\beta$. Notice this is your \emph{minimize squared error} from physics 1 lab! So when you implement that for work, you're really trying to construct the maximum likelihood estimation s.t. your data has Gaussian noise.
+\end{sidework}
+Let's now analytically maximize the log probability.
+\begin{align}
+	\frac{\partial}{\partial \beta} \log p(y | \beta)& = X^T\Sigma^{-1} (y - X \beta)
+\end{align}	
+I'm sorry, my notation is consistent with the statisticians notation, where $\partial / \partial \boldsymbol{\beta}$ is a column vector not row vector---not what I showed you earlier.
+Since we want to find $\beta = \hat \beta$ when we're maximizing the function, we set the derivative to zero.
+\begin{align}
+	\beta = \boxed{\hat \beta = (X^T \Sigma^{-1} X)^{-1} X^T \Sigma^{-1} y , \text{ when } n < p}
+\end{align}
+
+
+As hinted in class, when $p > n$ the solution is rank deficient, meaning the inverse is ill defined. You can apply Woodbury's identity twice, to get
+\begin{align}
+	\boxed{\hat \beta = \Sigma^{-1} X^T (X \Sigma^{-1} X^T)^{-1} y, \text{ when } p > n}
+\end{align}
+
+
+
+
+
+
+
+\subsection{Numerical Linear Algebra}
+\subsubsection{Time Complexity}
 Since we're talking about these things in the context of a computational class, it'll be good to recap the time complexity of such algorithms. Just keep these in the back of your mind. 
 
-
 \begin{itemize}
-	\item Matrix multiplication: $\mathcal O(n^{2.8})$.
-	\item Matrix inverse implemented in \texttt{numpy.linalg.solve}: $\mathcal O(n^3)$.
+	\item Matrix multiplication: $\mathcal O(n^{2.6})$.
+	\item Matrix inverse implemented in \texttt{numpy.linalg.solve}: $\mathcal O(n^{2.6})$.
 	\item SVD for a $n \times m$ matrix (s.t. $n \leq m$) : $\mathcal O(m n^2)$.
 	\item Determinant $\mathcal O(n^3)$ 
 \end{itemize}
 As a final note, the time complexity of an algorithm doesn't translate to the actual run time of an algorithm.
-\\
-\\
+
 See \url{https://en.wikipedia.org/wiki/Computational_complexity_of_mathematical_operations#Matrix_algebra} for more information.
+
+
+\subsubsection{Condition Number \& Matrix Inversion}
+An important quantity in numerical linear algebra is the condition number. It is defined as the ratio of maximum/minimum eigenvalues.
+\begin{align}
+	\text{Cond}(A) = \frac{\max(\lambda_i)}{\min(\lambda_i)}
+\end{align}
+where $\lambda_i$ are the eigenvalues of $A$. If you have a really ill-conditioned matrix (that is the condition number is high), your matrix inversion becomes unstable.
+
+As an illustration: if a matrix is invertible, you can re-express it as it's eigen-decomposition
+\begin{align}
+	A = U \Lambda U^T  = U \, \text{diag}(\lambda_1, ...,\lambda_d) U^T \implies A^{-1} = U \, \text{diag}(1/\lambda_1, ...,1/\lambda_d) \,  U^T
+\end{align}
+If $\lambda_1,\lambda_d$ are on drastically different orders of magnitude, then the $1/\lambda_1 ,\lambda_d$ might incur some floating point error when multiplied to the $U$'s.
+
+Thank you to Paul Demidov for this nice explanation.
+
+
+
+
+
+
 
 
 
@@ -260,10 +329,6 @@ Michael Hutchings, Notes on singular value decomposition for Math 54, \url{https
 
 \bibitem{gundersen}
 Gregory Gundersen, Singular Value Decomposition as Simply as Possible, \url{https://gregorygundersen.com/blog/2018/12/10/svd/}
-
-\bibitem{lamport94}
-Leslie Lamport (1994) \emph{\LaTeX: a document preparation system}, Addison
-Wesley, Massachusetts, 2nd ed.
 \end{thebibliography}
 
 
