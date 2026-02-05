@@ -1,4 +1,24 @@
 \section{PyTorch 101}
+
+
+\section{Tricks for Training Neural Networks}
+
+If you've been playing around with the homework, you might find that just running a vanilla MLP doesn't get good performance. Figuring out why certain tricks work (vs don't work) is a bit like research, so be patient with yourself.
+
+\subsubsection{Whitening}
+The following analysis will assume the data distribution $\mathcal D = \{x^{(i)}\}_i \sim^{iid} p_{data}$, has vanishing $\mathbb E[x^{(i)}] = 0$ and covariance $\mathbb E[x^{(i)}x^{(i)T} ] = \sigma^2 \mathbb I$. You might ask, is it this a fair assumption, and the answer is totally. You can always transform data to have these properties.
+
+Consider the data matrix $X \in \mathbb R^{b \times d}$ (each row is a $d$-dimensional data point)
+\begin{align}
+	X \equiv \begin{pmatrix}
+		- & x^{(1)} & -\\
+		  & \vdots & \\
+		- & x^{(b)} & -
+	\end{pmatrix}
+\end{align}
+
+
+
 \subsection{Training Dynamics}
 Thinking of back-propagation as a high-level chain rule is not enough to get a neural network to train. For example, here's some food for thought...
 \begin{itemize}
@@ -7,18 +27,7 @@ Thinking of back-propagation as a high-level chain rule is not enough to get a n
 \end{itemize}
 
 \subsection{Whitening}
-The following analysis will assume the data distribution $\mathcal D = \{x^{(i)}\}_i \sim^{iid} p_{data}$, has vanishing $\mathbb E[x^{(i)}] = 0$ and covariance $\mathbb E[x^{(i)}x^{(i)T} ] = \sigma^2 \mathbb I$.
 
-You might ask, is it this a fair assumption, and the answer is totally. You can always transform data to have these properties.
-
-Consider the data matrix $X \in \mathbb R^{b \times d}$ (each row is a $d$-dimensional data point)
-\begin{align}
-	X \equiv \begin{pmatrix}
-		- & x^{(1)} & -\\
-		\vdots  & \vdots & \vdots\\
-		- & x^{(b)} & -
-	\end{pmatrix}
-\end{align}
 
 \subsection{Back propagation}
 Using the rules from our matrix cheat sheet. Let $x \in \mathbb R^{m}$. Consider a linear layer 
@@ -38,6 +47,18 @@ As you propogat
 
 
 
-\subsection{PyTorch Tutorial}
-See \texttt{pytorch_tutorial.ipynb} in the repo.
-\newpage
+
+\begin{thebibliography}{9}
+\bibitem{recipe}
+Andrej Karpathy, A Recipe for Training Neural Networks, \url{https://karpathy.github.io/2019/04/25/recipe/}.
+
+
+\end{thebibliography}
+
+
+
+
+
+
+
+
