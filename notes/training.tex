@@ -1,13 +1,27 @@
 \section{PyTorch 101}
-I have a PyTorch tutorial in \url{https://github.com/clarkmiyamoto/PHYS-GA-2033-Spring2026/tree/main/code/PyTorch\%20Tutorial}. If that link dies, it's in my repo and in the code folder.
+I have a PyTorch tutorial in \url{https://github.com/clarkmiyamoto/PHYS-GA-2033-Spring2026/tree/main/code/PyTorch\%20Tutorial}. If that link dies, it's in my repo and in the \code{code} folder.
 
 
 \section{Tricks for Training Neural Networks}
 
-If you've been playing around with the homework, you might find that just running a vanilla MLP doesn't get good performance. Figuring out why certain tricks work (vs don't work) is a bit like research, so be patient with yourself.
+If you've been playing around with the homework, you might find that just running a vanilla MLP is difficult to get good performance. Figuring out why certain tricks work (vs don't work) is a bit of an art, so be patient with yourself.
 
-\subsubsection{Whitening}
-The following analysis will assume the data distribution $\mathcal D = \{x^{(i)}\}_i \sim^{iid} p_{data}$, has vanishing $\mathbb E[x^{(i)}] = 0$ and covariance $\mathbb E[x^{(i)}x^{(i)T} ] = \sigma^2 \mathbb I$. You might ask, is it this a fair assumption, and the answer is totally. You can always transform data to have these properties.
+For this rest of the discussion, we'll assume 
+\begin{itemize}
+	\item The model will be a MLP
+	\begin{align}
+		\text{Linear}(x) & = W x + b\\
+		f_\theta(x) & = \text{Linear}^{(L)} \circ \sigma \circ ... \circ x
+	\end{align}
+	To make our lives simpler, assume the model $f_\theta: \mathbb R^d \to \mathbb R$ maps to a single point.
+	\item We'll also assume the training data $\mathcal D_{tr} = \{(x_i, y_i)\}_{i=1}^n$ has an empirical mean $\mathbb E[x] = 0$ and covariance $\mathbb E[xx^T] = \mathbb I$. And the desired output is also $\mathbb E[y] = 0$ and $\mathbb E[y^2] = 1$.
+	
+	I'll prove that any empirical distribution can be transformed in such a way.
+\end{itemize}
+
+
+\subsection{Whitening}
+The following analysis will assume the data distribution $\mathcal D = \{x^{(i)}\}_i \sim^{iid} p_{data}$, has vanishing $\mathbb E[x] = 0$ and covariance $\mathbb E[x x^{T} ] = \sigma^2 \mathbb I$. You might ask, is it this a fair assumption, and the answer is totally. You can always transform data to have these properties.
 
 Consider the data matrix $X \in \mathbb R^{b \times d}$ (each row is a $d$-dimensional data point)
 \begin{align}
@@ -19,40 +33,165 @@ Consider the data matrix $X \in \mathbb R^{b \times d}$ (each row is a $d$-dimen
 \end{align}
 
 
+\subsection{Weight Initalization}
+Since we're running an algorithm you have to specify how your state initializes. 
 
-\subsection{Training Dynamics}
-Thinking of back-propagation as a high-level chain rule is not enough to get a neural network to train. For example, here's some food for thought...
-\begin{itemize}
-	\item We want to $\arg\min_\theta \mathcal L(\theta)$, what scheme do you implement? Note that $\mathcal L(\theta)$ implicitly depends on the data and model architecture, so perhaps that'll affect your answer.
-	\item In the model architecture, how do you initialize the model weights?
-\end{itemize}
-
-\subsection{Whitening}
-
-
-\subsection{Back propagation}
-Using the rules from our matrix cheat sheet. Let $x \in \mathbb R^{m}$. Consider a linear layer 
-\begin{align}
-	\text{Linear}& : \mathbb R^{m} \to \mathbb R^{n}\\
-	z(x) = \text{Linear}(x) & = Wx + b\\
-	\frac{\partial}{\partial W_{ij}}  \text{Linear}(x)& = x_j\\
-	\frac{\partial}{\partial W_{ij}}  \sigma(z)
+\subsubsection{Everything is the Same Initalization}
+So maybe naively you might say, I'll set everything weight to zero, but then $Wx = 0$ for all layers, so your model will always output zero. You also wouldn't want all the weights to be the same; there are two reasons
+\begin{enumerate}
+	\item \textbf{Neurons don't diversify}. If every weight has the same value, they'll all update the same, thus not diversifying. Consider a single layer network
+	\begin{align}
+		f_\theta(x) & = \sum_{n=1}^N a_n \, \sigma( w^{(n)} \cdot x )
+	\end{align}
+	where $a_n \in \mathbb R$ (scalar) and $w^{(n)} \in \mathbb R^d$ (vector, representing neuron $n$) of which there are $N$ of them. To model every weight having the same value, say $a_n = a$ and $w^{(n)} = w$.
+	\begin{align}
+		\frac{\partial}{\partial w_j^{(m)}} f_\theta(x) & = \sum_{n=1}^N a_n \sigma'(w^{(n)} \cdot x) \sum_{i=1}^d \frac{\partial w^{(n)}_i}{\partial w^{(m)}_j} x_i \\
+		& = a_m \sigma'(w^{(m)} \cdot x) x_j\\
+		& = a \sigma'(w \cdot x) x_j & a_n = a, w^{(m)} = w\\
+		\frac{\partial}{\partial a_j} & = a_i \sigma' (w^{(i)} \cdot x) = a \sigma' (w \cdot x)
+	\end{align}
+	Notice that all the neurons $w^{(n)}$ learn the same thing. 
+	\item \textbf{Variance of output.} Another explanation is the the network becomes unbounded as you increase the width of the layer. To illustrate just consider the data being acted on by a linear layer (no bias) .
+	\begin{align}
+	\text{Linear}(x) = \sum_{i=1}^d w_i x_i  &= \sum_{i=1}^d x_i  & \forall i , w_i = 1\\
+	\mathbb E \left[ \sum_{i=1}^d w_i x_i  \right] & = \sum_{i=1}^d \mathbb E[x_i] =0\\
+	\mathbb E \left[ \left(\sum_{i=1}^d w_i x_i \right)^2  \right] & = \mathbb E\left[\left(\sum_{i=1}^d x_i \right)^2   \right]\\
+	& = \mathbb E\left[\left(\sum_{i=1}^d x_i \right)  \left(\sum_{j=1}^d x_j \right)  \right]\\
+	& = \mathbb E \left[ \sum_{i=1}^d \sum_{j=1}^d x_i x_j\right]\\
+	& =  \mathbb E\left[ \sum_{i=j}^d x_i^2 + \sum_{i \neq j}^d x_i x_j \right]\\
+	& = d + \sum_{i \neq j} \mathbb E[x_i] \mathbb E[x_j] \\
+	& = d 
 \end{align}
+The variance of the output dependence on the width of the layer. Meaning as the data gets more and more high dimensional $(d \to \infty)$, you expect this layer to create more outliers. 
+
+You can fix this by setting $w_i = 1/d$. But due to the diversification problem, this isn't a true fix.
+\end{enumerate}
+
+\subsubsection{LeCun Initialization }
+A way to get rid of the diversification problem and control the output is to randomly initalize the weights. Since we're interested in controlling the mean \& variance, the simplest thing to consider is have them sample a Gaussian $w_i \sim^{iid} \mathcal N(0, \gamma^2)$. We choose the mean to be zero to prevent drift across the layers. Now let's fix the variance $\gamma^2$
+\begin{align}
+	\text{Linear}(x)  = \sum_{i=1}^d w_i x_i & \\
+	\mathbb E \left[ \sum_{i=1}^d w_i x_i  \right] & = \sum_{i=1}^d \mathbb E[w_i] \mathbb E[x_i] =  0 & w_i \text{ independent from } x_i\\
+	\mathbb E \left[ \left(\sum_{i=1}^d w_i x_i \right)^2  \right] & = \mathbb \sum_{i=j}^d \mathbb E[w_i^2] \mathbb E[x_i^2] = d \, \gamma^2
+\end{align}
+To keep this an \emph{intensive} quantity (e.g. it doesn't depend on dimension), we set $\sigma = 1/\sqrt{d}$. Repeating this across layers, if you believe the previous activation $z^{(\ell)}$ has statistics $\mathbb E[z^{(\ell)}] = 0$ $\mathbb E[z^{(\ell)} z^{(\ell)T}] = \mathbb I$, then for linear layer should be initialized 
+\begin{align}
+	\text{Linear}& : \mathbb R^{n_{in}} \to \mathbb R^{n_{out}}\\
+	W_{ij} & \iid \mathcal N\left(0, \frac{1}{n_{in}}\right)
+\end{align}
+Some terminology, we call $n_{in}$ fan-in and $n_{out}$ fan-out; it's number of neurons coming in \& out. We style of activation is called \textbf{LeCun Initalization}. 
+\\
+\\
+To summarize the idea. I assume $\mathbb E[x_i]=0, \mathbb E[x_i^2] = 1$. I assert, I want $W_{ij} \sim \mathcal N(0, \gamma^2)$ s.t. $\mathbb E[\text{Linear}(\cdot) \text{Linear}(\cdot)^T] = \mathbb I$, what should $\gamma^2$ become? And then I find $\gamma = 1/\sqrt{n_{in}}$.\\
+\\
+Notice we implicitly assume the activation function did affect the distribution...
+
+\subsubsection{Kaiming Initalization}
+Let's consider the case where the activation function is $\sigma(\cdot) = \text{ReLU}(\cdot) = \max(0, \cdot)$. 
+\begin{align}
+	\sigma(\text{Linear}(x)) & = \max\left(0, \left( \sum_{i=1}^d w_i x_i \right) \right)\\
+	\mathbb E[\sigma(\text{Linear}(x))^2] & = \mathbb E \left[ \max\left(0, \left( \sum_{i=1}^d w_i x_i \right) \right)^2 \right]\\
+	& = \frac{1}{2} \mathbb E \left[\left( \sum_{i=1}^d w_i x_i \right)^2 \right] = \frac{d \, \sigma^2}{2}
+\end{align} 
+To keep this intensive, we set $\sigma^2 = \frac{2}{d}$. This yields the \textbf{Kaiming Initalization}
+\begin{align}
+	W_{ij} \iid \mathcal N \left( 0 , \frac{2}{n_{in}} \right)
+\end{align}
+I don't adjust the mean because I'll let the biases take care of it for me.
+
+\subsubsection{Comments on initialization}
+Notice we always made some desiderata (adjust algorithm s.t. we get what we want), and then derived a distribution which fit problem. But these desiderata are assumptions, so you don't need to take these results as universal truths, but rather suggestions. 
+
+\subsection{Training}
+Another phenomena at play is the gradient descent.
+
+\subsubsection{Preconditioning: MuP \& Newton's Method}
+
+\paragraph{MuP}
 
 
+\paragraph{Preconditioned Gradient Descent}
+As we've seen, we need to modify the learning rate of the weights depending on how many neurons are in the layer. To generalize this concept, you can think of this as construct a preconditioned gradient descent.
+\begin{align}
+	\theta \leftarrow \theta + \, M^{-1} \nabla_\theta \mathcal L(\theta)
+\end{align} 
+where $M^{-1}$ is a conditioning matrix; it modifies the learning rate per parameter $\theta_i$. In the MuP case $[M^{-1}]_{ii} = 1/\sqrt{\text{width associated with the weight}}$, and the off-diagonals are zero.
 
-\subsection{Weight Initialization}
-As you propogat
+\paragraph{Newton's Method} It would be nice to configure the preconditioning matrix $M^$ in a model independent way...
+
+ You might have noticed the units for preconditioned gradient descent don't really make sense. You might just choose some constant that has the right units, but then you realize the LHS and RHS don't transform under unit conversion (i.e. if one of the components was in meters, then changed it to meters, you'd see LHS $\neq$ RHS). What if we made the conditioning matrix $M$ live on the state space?
+\\
+\\
+Some clues to get LHS = RHS:
+\begin{enumerate}
+	\item Notice the gradient has units $[\nabla_\theta] = [\theta]^{-1}$. Therefore the conditioning matrix $[M] = [\mathcal L][\theta]^{-2}$. 
+	\item If I consider an affine transformation $\tilde \theta = A \theta + b$ (where $A$ is a matrix, and $b$ is a vector). This means $\text{LHS} \mapsto A(\text{LHS}) + b$. To get the same behavior, you want $\text{RHS} \mapsto A(\text{RHS}) + b$
+	\begin{align}
+		\nabla_\theta \mathcal L(\theta) & \mapsto \nabla_{\tilde \theta} \mathcal L(\theta) \\
+		& = \frac{\partial}{\partial (A \theta + b)} \mathcal L(\theta)\\
+		& = \left(\frac{\partial (A \theta + b)	}{\partial \theta} \right)^{-1} \frac{\partial}{\partial \theta} \mathcal L(\theta)\\
+		& = A^{-1} \frac{\partial }{\partial \theta} \mathcal L(\theta)
+	\end{align}
+	But if we keep $M$ static, then we don't transform in the right way. So this means we want an object $M^{-1} \mapsto A M^{-1} A$, to kill the excess $A^{-1}$ from the gradient.
+\end{enumerate}
+An object which does this is the Hessian!
+\begin{align}
+	M_{ij} = \frac{\partial^2 \mathcal L}{\partial \theta_i \partial \theta_j} \equiv \nabla^2 \mathcal L
+\end{align}
+Using this we have constructed \emph{damped} \textbf{Newton's method}
+\begin{align}
+	\theta \leftarrow \theta + \eta (\nabla^2 \mathcal L(\theta))^{-1} \nabla \mathcal L(\theta)
+\end{align}
+Because of our derivation, we realize it's \textbf{affine invariant}. That is, it's performance is the same (invariant) under affine transformation of the function's input! 
+
+For example, algorithm will have the same performance on a quadratic well $\mathcal L(\theta) = \theta^2$ (harmonic oscillator) and when it becomes skewed/ill conditioned $\mathcal L(\theta) = \theta^T \Sigma^{-1} \theta$. The name "ill conditioned" comes from the condition number of matrix, a larger condition number for a quadratic form results in more skew. 
+
+The problem with this method is in machine learning $\theta \in \mathbb R^d$ where $d \sim 10^8$, so $\nabla^2 \mathcal L$ contains $\sim 10^{19}$ parameters. If each parameter is float32, that's 40 exabytes! So can we construct precondition methods whose memory constraints scale linearly in number of parameters.
+
+\subsubsection{Adaptive Preconditioning, Adam}
 
 
+The derivation for the MuP optimizer is architecture specific. What if we want a more general optimization algorithm
 
 
+This motivates the need for an adaptive algorithm.
+\begin{algorithm}[H]
+\caption{Adam Optimizer}
+\begin{algorithmic}[1]
+\Require Learning rate $\alpha$ (default: $10^{-3}$)
+\Require Exponential decay rates $\beta_1, \beta_2 \in [0,1)$ (defaults: $0.9, 0.999$)
+\Require Small constant $\epsilon$ for numerical stability (default: $10^{-8}$)
+\Require Initial parameters $\boldsymbol{\theta}_0$
+\State Initialize first moment vector $\mathbf{m}_0 \gets \mathbf{0}$
+\State Initialize second moment vector $\mathbf{v}_0 \gets \mathbf{0}$
+\State Initialize timestep $t \gets 0$
+\While{$\boldsymbol{\theta}_t$ not converged}
+    \State $t \gets t + 1$
+    \State Compute gradient: $\mathbf{g}_t \gets \nabla_{\boldsymbol{\theta}} \mathcal{L}(\boldsymbol{\theta}_{t-1})$
+    \State Update biased first moment: $\mathbf{m}_t \gets \beta_1 \mathbf{m}_{t-1} + (1-\beta_1)\mathbf{g}_t$
+    \State Update biased second moment: $\mathbf{v}_t \gets \beta_2 \mathbf{v}_{t-1} + (1-\beta_2)\mathbf{g}_t^2$
+    \State Correct first moment bias: $\hat{\mathbf{m}}_t \gets \mathbf{m}_t / (1 - \beta_1^t)$
+    \State Correct second moment bias: $\hat{\mathbf{v}}_t \gets \mathbf{v}_t / (1 - \beta_2^t)$
+    \State Update parameters: $\boldsymbol{\theta}_t \gets \boldsymbol{\theta}_{t-1} - \alpha \, \hat{\mathbf{m}}_t / (\sqrt{\hat{\mathbf{v}}_t} + \epsilon)$
+\EndWhile
+\State \Return $\boldsymbol{\theta}_t$
+\end{algorithmic}
+\end{algorithm}
+Where $\mathbf g_t^2$ and $\sqrt{\hat{\mathbf{v}}_t}$ are applied element-wise.
+
+\subsubsection{Dying Gradients in Deep Networks}
 
 
 \begin{thebibliography}{9}
 \bibitem{recipe}
 Andrej Karpathy, A Recipe for Training Neural Networks, \url{https://karpathy.github.io/2019/04/25/recipe/}.
 
+\bibitem{NAGNewton}
+Nick Alger, StackExchange,
+\url{https://math.stackexchange.com/questions/4617748/if-nesterov-accelerated-gradient-converges-quadratically-why-newtons-method}
+
+\bibitem{adaptiveprecond}
+Gabriele Farina, Nonlinear Optimization Lecture Notes, \url{https://www.mit.edu/~gfarina/2025/67220s25_L18_adagrad/L18.pdf}
 
 \end{thebibliography}
 

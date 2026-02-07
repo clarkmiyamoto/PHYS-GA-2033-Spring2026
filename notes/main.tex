@@ -11,24 +11,18 @@
 
 %%% Imports
 % Mathematics
-\usepackage{amsmath} % Math formatting
+\usepackage{amsmath, amsfonts, amssymb} % Math formatting
+\usepackage{algorithm,algpseudocode}
 \numberwithin{equation}{section} % Number equation per section
 \DeclareMathOperator{\Tr}{Tr}
 \DeclareMathOperator{\KL}{KL}
+\DeclareMathOperator{\iid}{\stackrel{\mathrm{iid}}{\sim}}
 
 
 
-\newtheorem{theorem}{Theorem}
-\newtheorem{definition}{Definition}
-\newtheorem{proof}{Proof}
-\newtheorem{lemma}{Lemma}
-\newtheorem{example}{Example}
-\newtheorem{fact}{Fact}
 
 
-\usepackage{amsmath}
-\usepackage{amsfonts} % Math fonts
-\usepackage{amssymb} % Math symbols
+
 \usepackage{mathtools} % Math etc.
 \usepackage{slashed} % Dirac slash notation
 \usepackage{cancel} % Cancels to zero
@@ -65,6 +59,21 @@
   skipabove=\topsep,
   skipbelow=\topsep
 ]{sidework} %% Side-work
+
+
+\usepackage{tcolorbox}
+\newtcbox{\code}{on line, arc=2pt, boxrule=0pt, 
+  colback={rgb,255:red,254;green,238;blue,240}, 
+  boxsep=0pt, left=3pt, right=3pt, top=2pt, bottom=2pt,
+  fontupper=\ttfamily\small\color{red!70!black}}
+
+% Custom Environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{proof}{Proof}
+\newtheorem{lemma}{Lemma}
+\newtheorem{example}{Example}
+\newtheorem{fact}{Fact}
 
 \newcounter{problem}
 \NewDocumentEnvironment{problem}{o}{%
