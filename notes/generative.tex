@@ -84,7 +84,7 @@ As a side note, this proof is typically done using Ito's lemma, and (I think) it
 \section{Score Based Diffusion}
 
 \section{Stochastic Interpolants}
-
+\subsection{ODE Formulation}
 In score based diffusion, you were constrained to using the OU process as your measure transport. Notice there are many paths (in the space of probability distributions) to go from a base distribution (which was previously Gaussian) to a target distribution. For example consider the transport equation
 \begin{align}
 	\partial_t p_t(x) & = - \nabla \cdot (\mathbf b_t(x) \, p_t(x)), \\ p_{t=0} & = p_0
@@ -126,19 +126,82 @@ where $p_t(x) = \int \delta(I_t - x) d\nu(x_0, x_1) d\mu(z)$. This is the distri
 \begin{align}
 	\boxed{b_t(x) = \mathbb E[\dot I_t | I_t = x]}
 \end{align}
+
+\paragraph{Inference}
 Because of the Fokker-Planck equation, I know the correspondance between the PDE on the distribution and the ODE on the samples.
 \begin{align}
 	\partial p_t (x) & = - \nabla \cdot (b_t(x) \, p_t(x)),  \ p_{t=0} = p_0\\
-	\iff \frac{d}{dt}x_t & = b_t(x_t), \ x_0 \sim p_0
-\end{align}
+	\iff \frac{d}{dt}x_t & = b_t(x_t), \ x_0 \sim p_0 \label{ode}
+\end{align} 
 So now I can transport samples by specifying a choice of a stochastic interpolant $I_t$. Computing $b_t(x)$ is difficult, as it implictly depends on $x_0,x_1,z$, so perhaps we can learn it.
 
-\subsection{Training}
+\paragraph{Training}
 Now that we've specified our choice of stochastic interpolant, we should create a training goal. We'll use a neural network to approximate $\hat b_t(x) \approx b_t(x)$. A simple loss is mean-square error weighted by the probability distribution
 \begin{align}
 	\mathcal L(\hat b) & = \int_0^1 \mathbb E[\| \hat b_t(I_t) - b_t(I_t) \|_2]  \, dt\\
-	& = \int_0^1 \mathbb E[]
+	& = \int_0^1 \mathbb E[|\hat b_t(I_t) - \dot I_t^2|^2] \, dt
 \end{align}
+After you've converged, you can plug in your estimate into a discretization of \ref{ode}.
+
+\subsection{SDE Formulation}
+To recap, you've figured out how to learn an ODE which has $\text{Law}(I_t) = p_t$. Perhaps we can extend these to SDEs. Consider the Fokker-Planck equation
+\begin{align}
+	\partial_t p(x) = - \nabla \cdot (b^F_t(x) \, p_t(x)) + \epsilon_t \Delta p_t(x)
+\end{align}
+what is the $b_t^F$ and $\epsilon_t$ that cause $\text{Law}(I_t) = p_t$? Instead of doing a bunch of Fourier stuff again, we can attempt to relate this current equation to the transport equation. Consider a decomposition of $b_t^F = b_t + f_t$, where $b_t(x) = \mathbb E[\dot I_t | I_t = x]$ is the drift from previously. Then
+\begin{align}
+	\partial_t p & = - \nabla \cdot (b_t \, p_t)  - \nabla \cdot (f_t \, p_t) + \epsilon_t \Delta p_t\\
+	\partial_t p & = \partial_t p_t - \nabla \cdot (f_t \, p_t) + \epsilon_t \Delta p_t\\
+	0 & = - \nabla \cdot (f_t \, p_t) + \epsilon_t \Delta p_t
+\end{align}
+By allowing the LHS and RHS $\partial_t p_t$ to cancel, you're implicitly saying the probability distribution that solved the transport also solves this Fokker Planck. Therefore any solution has $\text{Law}(I_t) = p_t$. Now we just have to choose $f_t$ to get rid of the other term, this ends up being $f_t = \epsilon_t \nabla_x \log p_t(x)$
+\begin{align}
+	0 & = -\epsilon_t \nabla \cdot(\nabla_x \log p_t \, p_t) + \epsilon_t \Delta p_t\\
+	& = - \epsilon_t \Delta p_t + \epsilon_t \Delta p_t = 0
+\end{align}
+Therefore
+\begin{align}
+	\boxed{b^F_t(x) = b_t(x) + \epsilon_t \nabla_x \log p_t(x)}
+\end{align}
+The question now is what is the score?
+Because $\text{Law}(I_t) = p_t$ and we want $\nabla_x \log p_t(x)$ we should inspect the density for $I_t$. Consider the conditional
+\begin{align}
+	p_t(x) & = (\rho_t * \mathcal N(0, \gamma_t^2 \mathbb I))(x)\\
+	& = \int \rho_t(a) \frac{\exp(-(x-a)^2/2\gamma_t^2)}{Z_t} \, da\\
+	\nabla_x \log p_t(x) & = \frac{\nabla_x p_t(x)}{p_t(x)} \\
+	& = \frac{1}{p_t(x)}\int -\frac{(x-a)}{\gamma_t^2}\rho_t(a) \frac{\exp(-(x-a)^2/2\gamma_t^2)}{Z_t} \, da\\
+	& = \frac{1}{ \int \rho_t(a) \frac{\exp(-(x-a)^2/2\gamma_t^2)}{Z_t} \, da} \int -\frac{(x-a)}{\gamma_t^2}\rho_t(a) \frac{\exp(-(x-a)^2/2\gamma_t^2)}{Z_t} \, da
+\end{align}
+Think about what you've written down here, $\rho_t = \text{Law}(I(t,x_0,x_1))$ and $\mathcal N(0, \gamma_t^2 \mathbb I) = \text{Law}(\gamma_t z )$. If $\mathcal N(0, \gamma_t^2 \mathbb I)$ is the likelihood and $\rho_t$ is the prior, by Bayes theorem, this is an expectation over the posterior.
+\begin{align}
+	& = \frac{\mathbb E[I(t,x_0,x_1) | I_t = x]  - x}{\gamma_t^2}\\
+	& = \frac{\mathbb E[I(t,x_0, x_1) - I_t | I_t =x]}{\gamma_t^2}\\
+	\Aboxed{\nabla_x \log p_t(x) & = - \frac{\mathbb E[z|I_t = x]}{\gamma_t}} & \text{By def } I_t = I(t,x_0,x_1) + \gamma_t z
+\end{align}
+\begin{sidework}
+	As a small remark, this result is known as Tweedie's formula. It says given a model
+	\begin{align}
+		Y = X + \sigma \, Z
+	\end{align}
+	where $z \sim \mathcal N(0, \mathbb I)$ s.t. $X \perp Z$. The Bayes optimal prediction of $X$ is given by
+	\begin{align}
+		\mathbb E[X | Y=x] = x + \gamma_t^2 \nabla \log p(y)
+	\end{align}
+	where $p(y) = (p_X * \mathcal N(0, \sigma^2))(y)$ is the likelihood over $y$.
+\end{sidework}
+Directly the score is not very viable, so we'll approximate it with a neural network. Due to $\gamma_t \to 0$ at $t=0,1$, it'll be a numerically unstable quantity. Instead we'll instead learn just $\mathbb E[z | I_t = x]$; we'll denote this as the \textbf{denoiser}.
+\begin{align}
+	\boxed{\eta(x) = \mathbb E[z | I_t = x]}
+\end{align}
+
+\paragraph{Training} Consider an MSE loss
+\begin{align}
+	\mathcal L(\hat \eta) & = \int_0^1 \mathbb E[ |\hat \eta(I_t) - z|^2 ]\, \,dt 
+\end{align}
+
+
+
+
 
 
 
