@@ -84,3 +84,70 @@ As a side note, this proof is typically done using Ito's lemma, and (I think) it
 \section{Score Based Diffusion}
 
 \section{Stochastic Interpolants}
+
+In score based diffusion, you were constrained to using the OU process as your measure transport. Notice there are many paths (in the space of probability distributions) to go from a base distribution (which was previously Gaussian) to a target distribution. For example consider the transport equation
+\begin{align}
+	\partial_t p_t(x) & = - \nabla \cdot (\mathbf b_t(x) \, p_t(x)), \\ p_{t=0} & = p_0
+\end{align}
+at $p_{t=0}$ it is our base distribution, and you want to select the drift vector field $\mathbf b_t(x)$ which gives your target $p_{t=1} = p_1$. This choice is non-unique, as there are many paths the particles could take from $p_0$ to $p_1$. So perhaps we should choose a path which is "easy" for samples to be transported.\\
+\\
+Let's be very ambitious. I'll declare a stochastic process
+\begin{align}
+	I_t = \alpha_t x_0 + \beta_t x_1 + \gamma_t  z
+\end{align}
+and I want to find the drift field $\mathbf b_t$ that forces the samples to be equal in distribution to $\text{Law}(I_t) = p_t$. We call this the \textbf{stochastic interpolant}. \begin{itemize}
+	\item The samples $(x_0, x_1) \sim \nu(x_0, x_1)$ are defined on a lifted measure s.t. it marginalizes appropriately
+	\begin{align}
+		\int \nu(x_0, x_1) \, dx_1 = p_0(x_0)  & & \int \nu(x_0, x_1) \, dx_0 = p_1(x_1)
+	\end{align}
+	An example is just making them independent $\nu(x_0, x_1) = p_0(x_0) p_1(x_1)$.
+	\item The $z \sim \mathcal N(0, \mathbb I)$ is a white noise term, so we'll make it $z \perp \nu(x_0, x_1)$.
+	\item Since the probability distribution has boundary conditions $p_{t=0} = p_0$ and $p_{t=1}= p_1$. We'd hope that $I_{t=0} = x_0 \sim p_0$ and $I_{t=1} = x_1 \sim p_1$. This implies
+		\begin{align}
+			\alpha_{t=0} = \beta_{t=1} = 1, \ \ \alpha_{t=1} = \beta_{t=0} = 0 , \ \ \gamma_{t=0} = \gamma_{t=1} = 0
+		\end{align}
+\end{itemize}
+We can derive the drift field by solving the equation. A nice trick is to solve it in Fourier space
+\begin{align}
+	\partial_t \tilde p_t(k) =  i \mathbf k \cdot \widetilde{\mathbf{b}_t p_t}(k)
+\end{align}
+where
+\begin{align}
+	\tilde p_t(k) & = \int e^{i k I_t} p(I_t)\, dI_t\\
+	& = \int \exp\left( ik (\alpha_t x_0  + \beta_t x_1 + \gamma_t \, z)\right) \nu(x_0, x_1) \, \mathcal N(z; 0, \mathbb I) \, d(x_0, x_1) \, dz
+\end{align}
+\begin{align}
+	\partial_t \tilde p_t(k) & = ik \int \dot I_t e^{ik I_t} p(I_t) dI_t\\	
+	& = ik \int \dot I_t e^{ik I_t} d\nu(x_0, x_1) \, d\mu(z) & p(I_t) dI_t = d\nu(x_0, x_1) d\mu(z)\\
+	& = ik \int  \dot I_t e^{ik x} \delta(I_t - x) d\nu(x_0, x_1) \, d\mu(z) \, dx & \text{Insert identity}\\
+	& = ik \ \int e^{ikx} \underbrace{\left(\int \dot I_t \, \frac{\delta(I_t - x) d\nu(x_0, x_1)}{p_t(x)} \, d\mu(z)\right)}_{= \mathbb E[\dot I_t | I_t = x]} \, p_t(x) dx
+\end{align}
+where $p_t(x) = \int \delta(I_t - x) d\nu(x_0, x_1) d\mu(z)$. This is the distribution $p(I_t)$ in disguise, you can see this by integrating against a test function. You can now see you satisfy the transport equation in Fourier space, therefore the drift field which satisfies $\text{Law}(I_t) = p_t$ is given by
+\begin{align}
+	\boxed{b_t(x) = \mathbb E[\dot I_t | I_t = x]}
+\end{align}
+Because of the Fokker-Planck equation, I know the correspondance between the PDE on the distribution and the ODE on the samples.
+\begin{align}
+	\partial p_t (x) & = - \nabla \cdot (b_t(x) \, p_t(x)),  \ p_{t=0} = p_0\\
+	\iff \frac{d}{dt}x_t & = b_t(x_t), \ x_0 \sim p_0
+\end{align}
+So now I can transport samples by specifying a choice of a stochastic interpolant $I_t$. Computing $b_t(x)$ is difficult, as it implictly depends on $x_0,x_1,z$, so perhaps we can learn it.
+
+\subsection{Training}
+Now that we've specified our choice of stochastic interpolant, we should create a training goal. We'll use a neural network to approximate $\hat b_t(x) \approx b_t(x)$. A simple loss is mean-square error weighted by the probability distribution
+\begin{align}
+	\mathcal L(\hat b) & = \int_0^1 \mathbb E[\| \hat b_t(I_t) - b_t(I_t) \|_2]  \, dt\\
+	& = \int_0^1 \mathbb E[]
+\end{align}
+
+
+
+
+
+
+
+
+
+
+
+

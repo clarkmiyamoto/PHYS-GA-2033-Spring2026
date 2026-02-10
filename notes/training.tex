@@ -20,17 +20,128 @@ For this rest of the discussion, we'll assume
 \end{itemize}
 
 
-\subsection{Whitening}
-The following analysis will assume the data distribution $\mathcal D = \{x^{(i)}\}_i \sim^{iid} p_{data}$, has vanishing $\mathbb E[x] = 0$ and covariance $\mathbb E[x x^{T} ] = \sigma^2 \mathbb I$. You might ask, is it this a fair assumption, and the answer is totally. You can always transform data to have these properties.
+\subsection{Normalization}
 
-Consider the data matrix $X \in \mathbb R^{b \times d}$ (each row is a $d$-dimensional data point)
+\subsubsection{Whitening Transform}
+
+Many optimization and learning algorithms work best when the input features are on comparable scales and uncorrelated.
+The \textbf{whitening transform} preprocesses data so that it has zero mean and identity covariance.
+
+Consider a dataset $\mathcal{D} = \{x^{(i)}\}_{i=1}^{N}$ with $x^{(i)} \in \mathbb{R}^d$.
+We arrange these into a data matrix $X \in \mathbb{R}^{N \times d}$ (each row is a data point):
 \begin{align}
 	X \equiv \begin{pmatrix}
-		- & x^{(1)} & -\\
-		  & \vdots & \\
-		- & x^{(b)} & -
-	\end{pmatrix}
+		- & x^{(1)\top} & - \\
+		  & \vdots      &   \\
+		- & x^{(N)\top} & -
+	\end{pmatrix}.
 \end{align}
+
+\paragraph{Procedure}
+Compute the empirical mean $\hat{\mu} = \frac{1}{N}\sum_{i=1}^{N} x^{(i)}$ and subtract it:
+\begin{align}
+	\bar{x}^{(i)} = x^{(i)} - \hat{\mu}.
+\end{align}
+After centering, the data has $\frac{1}{N}\sum_i \bar{x}^{(i)} = 0$. Now compute the empirical covariance matrix of the centered data:
+\begin{align}
+	\hat{\Sigma} = \frac{1}{N} \bar{X}^\top \bar{X},
+\end{align}
+where $\bar{X}$ is the centered data matrix. We seek a linear transformation $W$ such that the transformed data $\tilde{x} = W \bar{x}$ satisfies
+\begin{align}
+	\frac{1}{N} \sum_i \tilde{x}^{(i)} \tilde{x}^{(i)\top} = \mathbb I.
+\end{align}
+This requires $W \hat{\Sigma} W^\top = \mathbb I$, which is solved by $W = \hat{\Sigma}^{-1/2}$.
+
+To compute $\hat{\Sigma}^{-1/2}$, take the eigendecomposition $\hat{\Sigma} = U \Lambda U^\top$, where $\Lambda = \operatorname{diag}(\lambda_1, \dots, \lambda_d)$ with $\lambda_j > 0$.
+Then
+\begin{align}
+	W = U \Lambda^{-1/2} U^\top, \qquad \tilde{x}^{(i)} = U \Lambda^{-1/2} U^\top \bar{x}^{(i)}.
+\end{align}
+Physicists will recognize this as diagonalizing a quadratic form: you rotate into the principal axes of the covariance ellipsoid and rescale each axis to unit length. This particular choice, where you rotate back into the original basis, is called \textbf{ZCA whitening}. An alternative (\textbf{PCA whitening}) simply uses $W = \Lambda^{-1/2} U^\top$, which leaves the data in the eigenbasis.
+
+After whitening, the data distribution satisfies $\mathbb{E}[\tilde{x}] = 0$ and $\operatorname{Cov}(\tilde{x}) = I$, which is often a favorable starting point for gradient-based optimization.
+
+\paragraph{Practical note.}
+The eigendecomposition costs $\mathcal{O}(d^3)$, which is tractable for moderate $d$ but prohibitive for high-dimensional inputs (e.g., raw images with $d \sim 10^5$). This motivates the cheaper, approximate normalization schemes described next, which can be applied efficiently \emph{inside} the network.
+
+% ---------------------------------------------------------------------------
+\subsubsection{Batch Normalization}
+
+As data propagates through a deep network, the distribution of each layer's inputs shifts as the preceding layers' parameters are updated during training.
+The original BatchNorm paper~\cite{ioffe2015batch} called this \textbf{internal covariate shift} and proposed batch normalization as a remedy.
+Subsequent work~\cite{santurkar2018does} has shown that BatchNorm's primary benefit likely comes from \emph{smoothing the loss landscape} (making the gradients more predictable), rather than from reducing covariate shift per se.
+Regardless of the precise mechanism, BatchNorm is empirically very effective.
+
+\paragraph{Setup.}
+In mini-batch stochastic gradient descent, each forward pass processes a batch $\mathcal{B}$ of $|\mathcal{B}| = b$ data points simultaneously.
+Let $x^{(i)} \in \mathbb{R}^d$ denote the input to a BatchNorm layer for the $i$-th sample in the batch.
+
+\paragraph{Forward pass (training).}
+BatchNorm normalizes \emph{each feature independently}, using statistics computed across the batch.
+For each feature $j = 1, \dots, d$:
+\begin{align}
+	\hat{\mu}_j &= \frac{1}{b} \sum_{i \in \mathcal{B}} x_j^{(i)}, \\[4pt]
+	\hat{\sigma}_j^2 &= \frac{1}{b} \sum_{i \in \mathcal{B}} \bigl(x_j^{(i)} - \hat{\mu}_j\bigr)^2, \\[4pt]
+	\hat{x}_j^{(i)} &= \frac{x_j^{(i)} - \hat{\mu}_j}{\sqrt{\hat{\sigma}_j^2 + \epsilon}},
+\end{align}
+where $\epsilon > 0$ is a small constant for numerical stability (typically $\epsilon \sim 10^{-6}$).
+The normalized activations are then scaled and shifted by \emph{learnable} parameters $\gamma_j, \beta_j \in \mathbb{R}$:
+\begin{align}
+	y_j^{(i)} = \gamma_j \, \hat{x}_j^{(i)} + \beta_j.
+\end{align}
+Note that $\gamma, \beta \in \mathbb{R}^d$ are per-feature parameters learned via backpropagation. This allows the network to learn to undo the transformation (if that's optimal).
+
+\paragraph{Why disable the bias in the preceding linear layer.}
+If a linear layer computes $z = Wx + b$, the bias $b$ is absorbed into the batch mean $\hat{\mu}$ and then subtracted out by BatchNorm.
+It therefore has no effect on the output, and we should remove it to avoid redundant parameters: \code{nn.Linear(..., bias=False)}.
+The learnable shift $\beta$ in BatchNorm takes over the role of the bias.
+
+\paragraph{Forward pass (inference).}
+At test time, we may not have a batch (or the batch may not be representative).
+Instead, we use \emph{running statistics} accumulated during training via an exponential moving average:
+\begin{align}
+	\mu_j^{\text{run}} &\leftarrow (1 - \alpha)\,\mu_j^{\text{run}} + \alpha\,\hat{\mu}_j, \\[2pt]
+	(\sigma_j^{\text{run}})^2 &\leftarrow (1 - \alpha)\,(\sigma_j^{\text{run}})^2 + \alpha\,\hat{\sigma}_j^2,
+\end{align}
+where $\alpha$ is the momentum (default $0.1$ in PyTorch).
+At inference, $\hat{\mu}_j$ and $\hat{\sigma}_j^2$ are replaced by $\mu_j^{\text{run}}$ and $(\sigma_j^{\text{run}})^2$, and the entire BatchNorm layer becomes a fixed affine transformation.
+This is why \code{model.train()} vs. \code{model.eval()} matters in PyTorch: it toggles between using batch statistics and running statistics.
+
+
+\subsubsection{Layer Normalization}
+
+Instead of normalizing across the batch for each feature, \textbf{layer normalization}~\cite{ba2016layer} normalizes across features for each sample.
+For a single input $x \in \mathbb{R}^d$, define
+\begin{align}
+	\hat{\mu} &= \frac{1}{d} \sum_{j=1}^{d} x_j, \\[4pt]
+	\hat{\sigma}^2 &= \frac{1}{d} \sum_{j=1}^{d} (x_j - \hat{\mu})^2,
+\end{align}
+and the normalized output is
+\begin{align}
+	y_j = \gamma_j \, \frac{x_j - \hat{\mu}}{\sqrt{\hat{\sigma}^2 + \epsilon}} + \beta_j,
+\end{align}
+where, as in BatchNorm, $\gamma, \beta \in \mathbb{R}^d$ are learnable scale and shift parameters.
+
+\paragraph{Key differences from BatchNorm.}
+\begin{itemize}
+	\item \textbf{Normalization axis.} BatchNorm computes statistics across the \emph{batch} dimension (for each feature $j$). LayerNorm computes statistics across the \emph{feature} dimension (for each sample $i$).
+	A useful mnemonic: BatchNorm normalizes ``down the batch''; LayerNorm normalizes ``across the layer.''
+	\item \textbf{No batch dependence.} Since LayerNorm operates on each sample independently, it behaves \emph{identically} at training and inference time. There are no running statistics to maintain, and no sensitivity to batch size.
+	\item \textbf{Computational cost.} Both are $\mathcal{O}(bd)$, but LayerNorm avoids the bookkeeping of running averages.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\begin{problem}
+	Batch normalization and layer normalization differ only in which axis they normalize over, but in practice each is better suited to different architectures.
+	For each of the following tasks, argue which normalization scheme is more appropriate and \emph{why}:
+	\begin{enumerate}
+		\item Image recognition (e.g., a ResNet applied to ImageNet).
+		\item Natural language processing (e.g., a Transformer for machine translation).
+	\end{enumerate}
+	\textbf{Stuck?} See \href{https://stats.stackexchange.com/questions/474440/why-do-transformers-use-layer-norm-instead-of-batch-norm}{this StackExchange post} for a nice answer.
+\end{problem}
+
+
 
 
 \subsection{Weight Initalization}
@@ -117,7 +228,7 @@ As we've seen, we need to modify the learning rate of the weights depending on h
 \end{align} 
 where $M^{-1}$ is a conditioning matrix; it modifies the learning rate per parameter $\theta_i$. In the MuP case $[M^{-1}]_{ii} = 1/\sqrt{\text{width associated with the weight}}$, and the off-diagonals are zero.
 
-\paragraph{Newton's Method} It would be nice to configure the preconditioning matrix $M^$ in a model independent way...
+\paragraph{Newton's Method} It would be nice to configure the preconditioning matrix $M$ in a model independent way...
 
  You might have noticed the units for preconditioned gradient descent don't really make sense. You might just choose some constant that has the right units, but then you realize the LHS and RHS don't transform under unit conversion (i.e. if one of the components was in meters, then changed it to meters, you'd see LHS $\neq$ RHS). What if we made the conditioning matrix $M$ live on the state space?
 \\
@@ -179,12 +290,39 @@ This motivates the need for an adaptive algorithm.
 \end{algorithm}
 Where $\mathbf g_t^2$ and $\sqrt{\hat{\mathbf{v}}_t}$ are applied element-wise.
 
-\subsubsection{Dying Gradients in Deep Networks}
+\subsection{Architectural Modifications}
+\subsubsection{Residual Connections}
+Imagine you're in a super deep neural network. Because of the chain rule, some gradients might vanish prior to reaching you (i.e. gets killed by a ReLU). You can instead do something like this
+\begin{align}
+	z^{(\ell+1)} =  z^{(\ell)} + \sigma(\text{Linear}(z^{(\ell)}))
+\end{align}
+There's a couple bonuses
+\begin{itemize}
+	\item You'll learn something which is a perturbation away from the identity. Meaning your neural network is always learning something.
+	\item If your gradients should have been killed by $\sigma$, they can propagate directly form $z^{(\ell)}$
+\end{itemize}
+
+
+\subsection{Other Things}
+There are many more tricks! I won't have time to go over them, but that doesn't mean they're not useful/important. You should Google them when you get the chance.
+\begin{itemize}
+	\item \textbf{Regularization / Weight Decay:} Penalize your network for learning extreme weights. You can do this by adding an $\|\theta\|_p^p$ into your loss function (typically $p=1,2$). 
+	
+	If you're using the Adam optimizer, 
+	\item \textbf{Dropout}: During training, it randomly selects a percentage of weights at sets them to zero. The idea is to make the internal representations robust to the input. However it seems to not work well with batch normalization....
+	\item \textbf{(Exponential) Moving Average of Parameter}: During training you take an exponential moving average of your parameters. At inference time, you use this average as true model parameters.
+	\item \textbf{Early stopping}:
+\end{itemize}
+
+
 
 
 \begin{thebibliography}{9}
 \bibitem{recipe}
 Andrej Karpathy, A Recipe for Training Neural Networks, \url{https://karpathy.github.io/2019/04/25/recipe/}.
+
+\bibitem{batchnorm}
+Sergey Ioffe and Christian Szegedy, \emph{Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift}, \url{https://arxiv.org/pdf/1502.03167}
 
 \bibitem{NAGNewton}
 Nick Alger, StackExchange,
