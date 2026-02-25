@@ -1,17 +1,340 @@
-\section{Convolutional Neural Networks}
-
-\section{Graph Neural Networks}
+\section{Geometric Deep Learning}
+\subsection{Recap of Group Stuff}
 \begin{definition}
-	[Graph] A graph $G = (V,E)$ is two sets. 
+	[Group] The tuple $G = (S, \circ)$, where $S$ is a set and $\circ: S \times S \to S$ is a composition, is said to be a \textbf{group} if it obeys the following properties. For all $a,b,c \in S$.
 	\begin{itemize}
-		\item $V = \{v_1, ..., v_N\}$ are the vertexes / nodes. At each node $v_i$ a vector of features is attached $\mathbf h_i \in \mathbb R^d$. 
-		\item $E \subseteq V \times V$ are the dedges.
+		\item Closure: Composition remains inside $G$. $$a \circ b \in S$$
+		\item Associativity: Compositions obey associativity. $$(a \circ b) \circ c = a \circ (b \circ c)$$
+		\item Identity: There exits $e \in S$ which doesn't affect other elements. $$g \circ e = e \circ g = g$$
+		\item Inverse: There exists an inverse for each element (denoted by $^{-1}$) $$a \circ a^{-1} = a^{-1} \circ a = e$$
 	\end{itemize}
-	We represent connectivity using an adjacency matrix
+\end{definition}
+Some examples 
+\begin{itemize}
+	\item Simple examples: $(\mathbb Q, +)$ and $(\mathbb R \backslash 0, \times)$
+	\item Rotations: $S = \{M : \mathbb R^{d \times d}: \det M  = 1, M^T = M^{-1}\}$ and $\circ$ is matrix multiplication. This group is called the \textbf{special orthogonal group} $\text{SO}(d)$. Special means $\det M = 1$, and orthogonal matrices $M^T = M^{-1}$ .
+\end{itemize}
+While this is nice, how does one implement these operations on a computer, which only knows arrays?
+
+\begin{definition}
+	[Representation] A $d$-dimensional \textbf{representation} of a group $G = (S,\circ)$ is a map $\rho : G \to \mathbb R^{d \times d}$  to invertible matrices, and  \begin{align}\rho(g \circ h) = \rho(g) \rho(h)\end{align} where $\rho(.) \rho(..)$ is defined using matrix multiplication.
+\end{definition}
+For an example, let's revisit the rotations. Consider the set of 2D rotations $\text{SO}(2)$, the elements act on vectors in $v \in \mathbb R^2$. But we can do 2D rotations on 3D objects (imagine me T-posing and rotating). Stating this more mathematically, we can have a 3-dimensional representation of of $\text{SO}(2)$
+\begin{align*}
+	g & = \begin{pmatrix}
+	\cos(\phi) & - \sin(\phi) \\ \sin(\phi) & \cos(\phi) \end{pmatrix} \in \mathbb R^{2 \times 2}\\
+	\rho(g) & = \begin{pmatrix} \cos(\phi) & - \sin(\phi) & 0 \\ \sin(\phi) & \cos(\phi)& 0\\ 0 & 0 & 1 \end{pmatrix} \in \mathbb R^{3 \times 3}
+\end{align*}
+Notice this is rotations about the $z$-axis. You could have equivalently done rotations around the $x/y$-axis. This leads to the idea there are many different representations for a given group.
+
+
+\begin{definition}
+	[Invariance]
+	A function $f: \mathcal X \to \mathcal Y$ is $G$-invariant if for all $g \in G$ and $x \in \mathcal X$ the output is unaffected by compositions of the group.
 	\begin{align}
-		A_{ij} = \begin{cases}
-			1 & (v_i, v_j) \in E\\
-			0 & \text{else}
-		\end{cases}
+		f(\rho(g)\, x) = f(x)
 	\end{align}
 \end{definition}
+\begin{definition}
+	[Equivariance] A function $f : \mathcal X \to \mathcal Y$ is $G$-equivariant if for all $g \in G$ and $x \in \mathcal X$ the output changes covariantly with operations of the group
+	\begin{align}
+		\rho_{\mathcal Y}(g) \, f(x) = f(\rho_{\mathcal X}(g) \, x)
+	\end{align}
+\end{definition}
+An example is the Action (for an isotropic harmonic oscillator) is invariant under rotations $\text{SO}(2)$. Let the action $ S: \Omega \to \mathbb R$ (map from trajectories to numbers)
+\begin{align}
+	S[q] = \int dt\, \mathcal L[x, \dot x, y, \dot y]  = \int\, dt  \left(\frac{m}{2} (\dot x^2 + \dot y^2) - \frac{k}{2} (x^2 + y^2) \right) 
+\end{align}
+where $q = (x(t), y(t), \dot x(t), \dot y(t))$. In our new language, the repesentation $\rho(g)$ acts on the state variable $q$
+\begin{align}
+	\rho(g) \, q = \begin{pmatrix}
+		\cos(\phi) & - \sin(\phi) & &  \\ \sin(\phi) & \cos(\phi) &  & \\
+		& & \cos(\phi) & - \sin(\phi) \\ & & \sin(\phi) & \cos(\phi)
+	\end{pmatrix} \begin{pmatrix}
+		x(t) \\ y(t) \\ \dot x(t) \\ \dot y(t)
+	\end{pmatrix}
+\end{align}
+and you can show it leaves the action invariant
+\begin{align}
+	S[\rho(g) \, q] = S[q], \  \, \forall g \in G, q \in \Omega
+\end{align}
+However, the equations of motions transform equivariantly
+\begin{align}
+	m \begin{pmatrix}
+		\ddot x \\ \ddot y 
+	\end{pmatrix} & = -k \begin{pmatrix}
+		x  \\ y
+	\end{pmatrix}\\
+	F : (x,y) \mapsto (\ddot x , \ddot y) & = - \frac{k}{m}\, (x,y)
+\end{align} You can show $F[\rho(g) \, q] = \rho(g) F[q]$.
+
+\subsection{Building Symmetries into Architectures}
+Now that we have the foundations, how do we implement this into architectures. I'll first explore a couple examples (CNNs, GNNs), and then state a generic design pattern.
+
+\subsubsection{Convolutional Neural Networks}
+Consider a grayscale image $\varphi : \mathbb Z^2 \to \mathbb R$, where $\varphi(u)$ denotes the intensity of white-value at index $u$. In the physicist's language, "an image is a scalar field on a discretized 2D space". In the data scientist / EE's language, we call it a \textbf{signal}.
+
+\paragraph{Convolution}
+Recall a convolution is defined as
+\begin{align}
+	[f * g](\mathbf u) = \int f(\mathbf a) g(\mathbf u - \mathbf a) \, d\mathbf a
+\end{align}
+When the domain of $f$ is discrete, then we can just sum
+\begin{align}
+	[f * g](u) & = \sum_a f(a) g(u-a) & \text{(1 dimension)}\\
+	[f * g](u_1, u_2)& = \sum_{a_1} \sum_{a_2} f(a_1, a_2) \, g(u_1 - a_1, u_2 - a_2) & \text{(2 dimensions)}
+\end{align}
+The convolutional layer is defined as
+\begin{align}
+	\text{Conv}[\varphi](u) = \sum_{a_1,a_2=1}^K k(a_1, a_2) \varphi(u_1 - a_1, u_2 - a_2)
+\end{align}
+where $k \in \mathbb R^{K \times K}$ is a trainable kernel of size $K$, and $k(a_1, a_2) = k_{a_1,a_2}$ is shorthand for the indices of the matrix. 
+\begin{problem}
+	Let $\varphi: \mathbb Z^2 \to \mathbb R$ be your inputted image, and $k$ be your learned kernel. Show that $\text{Conv}[\varphi]$ is equivariant under discrete translations (for all kernels $k$). What did you have to assume? Why is the convolution not equivariant under sub-pixel translations?
+	
+	Bonus question: CNNs work in practice because is even with sub-pixel translations, they're approximately equivariant. Bound the error on how equivariant the convolution is assuming a sub-pixel translation, where you use bilinear interpolation.
+\end{problem}
+To do the proof, you either assumed the domain to be discrete (but infinite), or periodic. In practice we just have a finite domain, so you loose exact equivariance around the edges of the image.
+
+\begin{sidework}
+	In practice, there are other options which are useful
+	\begin{itemize}
+		\item Channels: You can make $C_{out}$ copies of the convolution, s.t. $\text{Conv}[\varphi] \in \mathbb R^{C_{out} \times h_{out} \times w_{out}}$. So there are multiple trainable kernels which act in parallel on the same input.
+		\item Padding: adds a boarder (of specified size, and content) around the input, then does the convolution.
+		\item Stride: Skip every `stride' number of pixels.
+	\end{itemize}
+	
+	\noindent
+	In PyTorch you can implement this using
+	
+	\noindent \code{nn.Conv2d(in_channels=Cin, out_channels=Cout, kernel_size=K, stride=1, padding=1)}
+	
+	Under the hood, it doesn't actually implement convolution, but rather a cross correlation. This is because it's computationally cheaper, but with the tunable kernel you can find a kernel where the cross-corr becomes a convolution (and vice versa).
+\end{sidework}
+
+
+\paragraph{Pooling}
+Now that you've processed your image $\varphi$ using convolutions (which I'll denote as $h$), you want to process out the important data from the noise. Convolutions kinda pick out patterns, so perhaps you want to pick out "favorable / highly activated" patterns... 
+
+We call these \textbf{(local) pooling} operators. These are chosen to be equivariant operators.
+\begin{itemize}
+	\item \textbf{Max Pooling:} Divide the inputted feature into $P \times P$ non-overlapping patches
+	\begin{align}
+		\text{MaxPool}[h] = \max_{0 \le a_1, a_2 < P} h(Pi + a_1 , Pj + a_2)
+	\end{align}
+	\item \textbf{Average Pooling:} Same idea but use an average, instead of a maximum.
+	\begin{align}
+		\text{AvgPool}[h] = \frac{1}{P^2} \sum_{a_1=0}^{P-1} \sum_{a_2=0}^{P-1} h(Pi + a_1, ; Pj + a_2)
+	\end{align}
+\end{itemize}
+And there are also \textbf{global pooling operations}, which are chosen to be invariant operators.
+\begin{itemize}
+	\item \textbf{Global Average Pooling:} Converts a feature into its average, meaning
+	\begin{align}
+	\text{GlobalAvgPool} & : \mathbb R^{c \times H \times W} \to \mathbb R^{c}\\
+		\text{GlobalAvgPool}[\varphi]_c & = \frac{1}{H \, W}\sum_{i=1}^H \sum_{j=1}^W h_c(i,j)
+	\end{align}
+	where $_c$ denotes the $c$'th channel. So it acts element-wise over channels.
+\end{itemize}
+\begin{problem}
+	The implementation of CNNs look like a bunch of stacked convolutions \& activation functions $\sigma$ (acting element-wise), then a max pool.
+	\begin{align}
+		h[\varphi] = \text{MaxPool} \circ \sigma \circ \text{Conv}_2 \circ \sigma \circ \text{Conv}_1 \circ \varphi
+	\end{align}
+	Here's a couple questions for you:
+	\begin{enumerate}
+		\item For what translations is this invariant / equivariant? Hint: it is not equivariant/invariant to single pixel translations.
+		\item What about if you switched this out for the Global Pooling Average?
+		\item \textbf{Bonus:} Could you come up with a Pooling operation which is equivariant to single pixel shifts? If you're stuck see \cite{cnnshiftinvaraintagain}.
+	\end{enumerate}
+	
+\end{problem}
+\begin{problem}
+	A famous architecture "ResNet" incudes residual connections to prevent gradients from dying inside of the pooling operation. In CNNs they show up like
+	\begin{align}
+		h[\varphi] = \text{MaxPool} \circ (\text{Id} + \sigma \circ \text{Conv}_2 \circ \sigma \circ \text{Conv}_1) \circ \varphi
+	\end{align}
+	where $(\text{Id + F})[\varphi] = \varphi + F[\varphi]$. Why is this a clever trick? (I'm looking for an answer involving equivariance/invariance). 
+\end{problem}
+
+
+
+\paragraph{Summary of Architecture}
+In practice, the architecture looks something like this
+\begin{align*}
+	\text{Input} \to [\text{Conv} \to \text{Activation} \to \text{Pool}] ^ L \to \text{GlobalAvgPool} \to \text{MLP} \to \text{Output}
+\end{align*}
+The early layers capture textural patterns in images, which get iteratively coarse-grained via the (local) pooling operation. At this point, the features are equivariant (this equivariance is slightly broken by the typical pooling operators). After a sufficient amount of depth, we apply the global pooling operation to construct G-invariant representations of the data, from which should hopefully be easy to learn from, thus an MLP finishes us off.
+
+\subsubsection{Graph Neural Networks}
+In the previous architectures, the data was assumed to have a grid-structure. We can generalize these techniques to work on other data structures. Consider your data is a graph structure: at each node $v$ there is a vector of data $\mathbf x_v$, and they're connected via edges.
+\begin{align}
+	\mathbf h_u(\mathbf x_u) =  \phi \left( \mathbf x_u,  \bigoplus_{v \in \mathcal N_u} \psi(\mathbf x_u, \mathbf x_v)\right)
+\end{align}
+where $\bigoplus$ is a permutation invariant operator (e.g. sum, average, max), and you're summing over neighbors $\mathcal N_u$ of node $u$. Typically $\phi,\psi$ are learnable parameters.
+
+This is a very expressive ansatz, to the point it's not very informative. So here are a couple example architectures:
+\begin{itemize}
+	\item \textbf{Simple GNN:} Set $\psi(\mathbf x_u, \mathbf x_v) = \mathbf W_1 \mathbf x_v$ and $\phi(\mathbf x_u, \mathbf m) = \sigma(\mathbf W_0 \mathbf x_u + \mathbf m)$, giving
+	\begin{align}
+		\mathbf h_u = \sigma\!\left(\mathbf W_0 \mathbf x_u + \sum_{v \in \mathcal N_u} \mathbf W_1 \mathbf x_v\right).
+	\end{align}
+
+	\item \textbf{Graph Convolutional Layer \cite{graphcnn}:} Tie the weights $\mathbf W_0 = \mathbf W_1 = \mathbf W$ and average over the neighborhood (including the node itself), normalized by degree:
+	\begin{align}
+		\mathbf h_u = \sigma\!\left(\mathbf W \sum_{v \in \mathcal N_u \cup \{u\}} \frac{1}{\sqrt{(|\mathcal N_u| + 1
+	)(|\mathcal N_v| + 1)}} \mathbf x_v\right).
+	\end{align}
+	This corresponds to $\psi(\mathbf x_u, \mathbf x_v) = \frac{1}{\sqrt{|\mathcal N_u||\mathcal N_v|}} \mathbf W \mathbf x_v$ and $\phi(\mathbf x_u, \mathbf m) = \sigma(\mathbf m)$.
+
+	\item \textbf{CNN:} Consider a 1D signal on a regular chain graph where each node $u$ has neighbors $\mathcal N_u = \{u-1, u+1\}$. Then with position-dependent weights:
+	\begin{align}
+		\mathbf h_u = \sigma\!\left(w_{-1}\, x_{u-1} + w_0\, x_u + w_1\, x_{u+1}\right)
+	\end{align}
+	which is exactly a 1D convolution with kernel size 3. Standard CNNs are thus GNNs on a grid graph where the message function depends on the relative position of the neighbor.
+
+	\item \textbf{Transformers:} Set the message function to be an attention-weighted value:
+	\begin{align}
+		\mathbf h_u = \sum_{v \in \mathcal N_u} \alpha_{uv}\, \mathbf V \mathbf x_v, \qquad \alpha_{uv} = \frac{\exp\!\left(\frac{(\mathbf Q \mathbf x_u)^\top (\mathbf K \mathbf x_v)}{\sqrt{d}}\right)}{\sum_{v' \in \mathcal N_u} \exp\!\left(\frac{(\mathbf Q \mathbf x_u)^\top (\mathbf K \mathbf x_{v'})}{\sqrt{d}}\right)}.
+	\end{align}
+	This corresponds to $\psi(\mathbf x_u, \mathbf x_v) = \alpha_{uv}\, \mathbf V \mathbf x_v$ with $\bigoplus = \sum$. Standard transformers are the special case where the graph structure is fully connected.
+\end{itemize}
+
+
+\subsubsection{Generically Building Symmetries in Deep Neural Networks}
+
+We've now seen two examples (CNNs, GNNs) that follow the same pattern. Let's abstract
+the recipe.
+
+\paragraph{The Setup.}
+You have:
+\begin{enumerate}
+    \item A \textbf{domain} $\Omega$ on which your data lives (a grid, a graph, a
+    manifold, a point cloud, etc.).
+    \item A \textbf{symmetry group} $G$ that acts on $\Omega$
+    (translations, permutations, rotations, gauge transformations, etc.).
+    \item \textbf{Feature fields}: at each point $u \in \Omega$, your data takes values
+    in some vector space $V$. A ``signal'' is a map $f: \Omega \to V$. The group $G$
+    acts on the space of signals via some representation $\rho$:
+    \begin{align}
+        [\rho(g) f](u) = \rho_V(g) \, f(g^{-1} \cdot u)
+    \end{align}
+    where $\rho_V(g)$ describes how the \emph{values} transform (e.g.\ trivially for
+    scalars, by rotation matrices for vectors) and $g^{-1} \cdot u$ describes how the
+    \emph{domain} transforms.
+\end{enumerate}
+
+\paragraph{The Design Principle.}
+An architecture is built by composing maps. Each map is either:
+\begin{itemize}
+    \item \textbf{Equivariant} (preserves symmetry structure): the intermediate
+    ``feature maps'' transform predictably under $G$, or
+    \item \textbf{Invariant} (discards symmetry structure): the output does not change
+    under $G$.
+\end{itemize}
+The key result that makes this work:
+
+\begin{fact}[Composition preserves equivariance]
+    If $f_1: V_0 \to V_1$ is equivariant (w.r.t.\ representations $\rho_0, \rho_1$)
+    and $f_2: V_1 \to V_2$ is equivariant (w.r.t.\ $\rho_1, \rho_2$), then
+    $f_2 \circ f_1: V_0 \to V_2$ is equivariant (w.r.t.\ $\rho_0, \rho_2$).
+    In particular, composing equivariant maps followed by an invariant map yields an
+    invariant map.
+\end{fact}
+
+The proofs are left as a mental exercise for the reader.
+\\
+\\
+This gives us the \textbf{generic architecture pattern}:
+\begin{align*}
+    \text{Input} \;\xrightarrow{\text{equivariant}}\;
+    \text{Features}_1 \;\xrightarrow{\text{equivariant}}\;
+    \cdots \;\xrightarrow{\text{equivariant}}\;
+    \text{Features}_L \;\xrightarrow{\text{invariant}}\;
+    \text{Output}
+\end{align*}
+
+\noindent
+Every architecture we've seen is an instance of this:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l c c c c}
+    \hline
+    \textbf{Architecture} & \textbf{Domain $\Omega$} & \textbf{Group $G$}
+    & \textbf{Equivariant Layer} & \textbf{Invariant Layer} \\
+    \hline
+    CNN & $\mathbb{Z}^2$ (grid) & Translations & Convolution & Global Avg Pool \\
+    GNN & Graph & Node permutations $S_n$ & Message passing & Global readout \\
+    Transformer & Sequence/set & Permutations $S_n$ & Self-attention & [CLS] / mean pool \\
+    \hline
+\end{tabular}
+\end{center}
+
+\paragraph{Recipe for building a $G$-equivariant network.}
+\begin{enumerate}
+    \item \textbf{Identify the symmetry group} $G$ and what is approriate for your data.	
+    \item \textbf{Choose equivariant linear maps.} For many groups, the space of equivariant linear maps is highly constrained and such maps are usually represented as sparse matrices making them memory efficient. As a familiar example:
+    \begin{itemize}
+        \item For translations on $\mathbb{Z}^d$: the equivariant linear maps are convolutions.
+        \item For permutations $S_n$: the equivariant linear maps on node features are of the form $\mathbf{W}_0 \mathbf{x}_v + \mathbf{W}_1 \sum_{v'} \mathbf{x}_{v'}$.
+    \end{itemize}
+
+    \item \textbf{Add equivariant nonlinearities.} Pointwise activation functions
+    $\sigma: \mathbb{R} \to \mathbb{R}$ applied to scalar features are automatically
+    equivariant to any group acting on the domain. For non-scalar features (e.g.\ vector fields), this might be slightly tricky.
+    \item \textbf{Local pooling (coarse graining).} Use equivariant pooling layers which compress the data, allowing the network to learn richer representations.
+    \item \textbf{G-Invariant Layer (global pooling).} Use an invariant layer to construct invariant representations. Use a $G$-invariant aggregation: summation/averaging over orbits, or over the full domain.
+\end{enumerate}
+
+\begin{problem}
+    (Putting it all together.) You are designing a neural network to predict
+    a scalar property $y \in \mathbb{R}$ of a 3D point cloud
+    $\{(\mathbf{r}_i, z_i)\}_{i=1}^N$,
+    where $\mathbf{r}_i \in \mathbb{R}^3$ are positions and $z_i \in \mathbb{Z}$
+    are atom types (think: molecular energy prediction).
+    The prediction should be invariant under:
+    \begin{itemize}
+        \item Permutations of the atom indices
+        \item Rigid translations $\mathbf{r}_i \mapsto \mathbf{r}_i + \mathbf{t}$
+        \item Rotations $\mathbf{r}_i \mapsto \mathbf{R} \mathbf{r}_i$ for $\mathbf{R} \in \text{SO}(3)$
+    \end{itemize}
+    Using the generic recipe above, sketch an architecture.
+    Specifically:
+    \begin{enumerate}
+        \item[(a)] What should the input features be to guarantee translation invariance
+        from the start?
+        \item[(b)] What is the symmetry group acting on these features?
+        \item[(c)] What form should the equivariant layers take?
+        \item[(d)] What pooling operation produces a graph-level,
+        permutation-invariant representation?
+    \end{enumerate}
+    You do not need to write down explicit weight matrices---just the structural choices.
+\end{problem}
+
+
+\begin{thebibliography}{9}
+\bibitem{gdl}
+Michael M. Bronstein, Joan Bruna, Taco Cohen and Petar Veličković Geometric. Deep Learning: Grids, Groups, Graphs, Geodesics, and Gauges. \url{https://arxiv.org/abs/2104.13478}.
+
+\bibitem{graphcnn}
+Thomas N. Kipf and Max Welling. Semi-Supervised Classification with Graph Convolutional Networks. \url{https://arxiv.org/abs/1609.02907}.
+
+\bibitem{cnnshiftinvaraintagain}
+Richard Zhang. Making Convolutional Networks Shift-Invariant Again. \url{https://arxiv.org/abs/1904.11486}. 
+\end{thebibliography}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

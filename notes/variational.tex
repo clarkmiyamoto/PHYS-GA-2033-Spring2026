@@ -3,6 +3,7 @@ There were a couple of bottlenecks on MCMC
 \begin{enumerate}
 	\item If the query time for the likelihood is quite long, then sampling the distribution will take very long.
 	\item In multimodal distributions, we have no guarantees when the chains will mix / find other mode, so MCMC may fail in that regime. Note, multimodal is NP-hard so this new technique won't entirely solve it.
+	\item For high-dimensional distributions the computational budget required of Markov Chain tend to grow as $d$ (in particular $d^{1/4}$ for HMC). ML methods thrive in high dimensional environments, so perhaps there's a nice integration here?
 \end{enumerate}
 Instead, what if you attempted to approximate the target distribution, in such a way it was easy to sample? As physicists, this must sound familiar to you. Recall the variational principle from quantum mechanics.
 \begin{align}
@@ -46,11 +47,13 @@ There are couple ways to measure the distance between probability measures. Each
 		\emph{Comments:} This is considered the most natural way to compare distributions. You can also bound moments, unlike the TV distance.
 \end{itemize}
 
-Any of these measurements will equal zero i.f.f. the two distributions are equal, and  they're all non-negative. Making them good loss functions for neural networks. As hinted earlier, the KL Divergence will be preferred for computational easyness. The question becomes which argument do the, parameterized distribution $p_\theta$ and target distribution $\pi$, go?
+Any of these measurements will equal zero i.f.f. the two distributions are equal, and  they're all non-negative, which makes them good loss functions for neural networks. As hinted earlier, the KL Divergence is preferred for computational easyness. The question becomes which argument do the, parameterized distribution $p_\theta$ and target distribution $\pi$, go?
 \begin{align}
 	\KL(p_\theta \| \pi) & = \int p_\theta(x) \log \frac{p_\theta(x)}{\pi(x)} \, dx =  \mathbb E_{x \sim p_\theta} [\log p_\theta(x) ] - \mathbb E_{x \sim p_\theta} [\log \pi(x)]\\
 	\KL(\pi \| p_\theta) & = \mathbb E_{x \sim \pi} [\log \pi(x)] - \mathbb E_{x \sim \pi}[\log p_\theta(x)]
 \end{align}
+Notice, these get 
+
 
 
 

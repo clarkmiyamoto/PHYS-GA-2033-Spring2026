@@ -135,8 +135,8 @@ where, as in BatchNorm, $\gamma, \beta \in \mathbb{R}^d$ are learnable scale and
 	Batch normalization and layer normalization differ only in which axis they normalize over, but in practice each is better suited to different architectures.
 	For each of the following tasks, argue which normalization scheme is more appropriate and \emph{why}:
 	\begin{enumerate}
-		\item Image recognition (e.g., a ResNet applied to ImageNet).
-		\item Natural language processing (e.g., a Transformer for machine translation).
+		\item Image recognition (e.g., a ResNet applied to ImageNet). The batch is over multiple images, the layer is across channels.
+		\item Natural language processing (e.g., a Transformer for machine translation). The batch norm would look at a feature across tokens in a sentence, then normalize. The layer norm would take a token and normalize over the embedding dimension.
 	\end{enumerate}
 	\textbf{Stuck?} See \href{https://stats.stackexchange.com/questions/474440/why-do-transformers-use-layer-norm-instead-of-batch-norm}{this StackExchange post} for a nice answer.
 \end{problem}
@@ -219,6 +219,9 @@ Another phenomena at play is the gradient descent.
 \subsubsection{Preconditioning: MuP \& Newton's Method}
 
 \paragraph{MuP}
+Just like inspected the initialization, we can inspect the weight update. In particular, we'd hope that the hidden layers representations would have a finite variance.
+
+Consider the linear layer $y = w^T x$, where $\mathbb E[x] = 0$ and $\mathbb E[xx^T]= \mathbb I_d$. 
 
 
 \paragraph{Preconditioned Gradient Descent}
