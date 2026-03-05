@@ -1,62 +1,266 @@
-\section{Variational Inference}
-There were a couple of bottlenecks on MCMC
-\begin{enumerate}
-	\item If the query time for the likelihood is quite long, then sampling the distribution will take very long.
-	\item In multimodal distributions, we have no guarantees when the chains will mix / find other mode, so MCMC may fail in that regime. Note, multimodal is NP-hard so this new technique won't entirely solve it.
-	\item For high-dimensional distributions the computational budget required of Markov Chain tend to grow as $d$ (in particular $d^{1/4}$ for HMC). ML methods thrive in high dimensional environments, so perhaps there's a nice integration here?
-\end{enumerate}
-Instead, what if you attempted to approximate the target distribution, in such a way it was easy to sample? As physicists, this must sound familiar to you. Recall the variational principle from quantum mechanics.
-\begin{align}
-	\langle \psi_\theta | H | \psi_\theta \rangle \geq E_{gs}
-\end{align}
-where $\psi_\theta$ is a trial wave function. You $\arg \min_\theta \langle \psi_\theta | H | \psi_\theta \rangle$ in an attempt to find the ground state. But let me restate this in a more statistical language. You parameterize your probability distribution (wave function) via a neural network, and you adjust the parameters to minimize the discrepancy between  the parameterized distribuiton \& the target distribution.
-
-This now raises questions
-\begin{enumerate}
-	\item Are there "distance" measurements between probability distributions? Which one should I pick as a loss function?
-	\item How can parameterize a probability distribution in a very flexible way s.t. (1) I can sample it easily, (2) perhaps I can even evaluate it's log-probability?
-\end{enumerate}
-
-
-
-\subsection{Distance of Probability Measures}
-There are couple ways to measure the distance between probability measures. Each is good for a certain context. A (very) non-exhaustive list
+\section{Sampling Probability Distributions}
+\subsection{Setup}
+In this chapter, we are interested in solving the problem of sampling. Note this is distinct from the setup in generative modeling, so let me be very clear
 \begin{itemize}
-	\item Total Variation distance 
-		\begin{align}
-			\| p - q\|_{TV} = \frac{1}{2} \int |p(x) - q(x) | \, dx
-		\end{align}
-		\emph{Comments:} It's an $L_1$ bound on the distributions, so if you don't care about the moments but making sure the spaces are close, then it's good. However, you can NOT bound moments using this...
-	\item Kullback-Leibler divergence
+	\item \textbf{Generative Models:} You are given access to samples $\{x_i\}_i$ (presumably drawn from $x \sim \pi(x)$). You want to generate new samples that come from $\pi(x)$.
+	\item \textbf{Kernel Density Estimation:} You are given access to samples $\{x_i\}_i$ (which came from $x \sim \pi(x)$). You want to infer what $\pi(x)$ was (that is evaluate the log prob).
+	\item \textbf{Sampling:} You are given oracle access to $\pi(x)$ (up to normalization constant). You want to compute the expectation value $\mathbb E_\pi[f(x)]$ of a given function $f$ under $\pi$.
+\end{itemize}  
+One of the widely accepted sampling methods is MCMC (Markov Chain Monte Carlo). However it comes with a couple draw backs
+\begin{enumerate}
+	\item If the query time for the $\pi(x)$  is quite long, then sampling the distribution will take very long.
+	\item In multimodal distributions, we have no guarantees when the chains will mix / find other mode, so MCMC may fail in that regime. Note, multimodal is NP-hard so this new technique won't entirely solve it.
+	\item For high-dimensional distributions the computational budget required of Markov Chain tend to grow as $d$ (in particular $d^{1/4}$ for HMC \cite{hmc_scaling}). ML methods thrive in high dimensional environments, so perhaps there's a nice things to be said here?
+\end{enumerate}
+A natural idea is to use a neural network to approximate the target distribution $p_\theta \approx \pi$. They are much quicker than evaluating the likelihood, and they seem to be good at scaling to high dimensions. Another upside compared to classical methods (Gaussian Mixture Models), is that you didn't know if your model class was expressive enough to capture the distribution, now you can feel confident in capturing the target distribution. But new challenges arise, if you naively parameterize $p_\theta$ as a function, you have to figure out how to normalize it. Generative models offer some answers, so let's do a brief recap
+\begin{table}[H]
+\centering
+\label{tab:nf-vs-diffusion}
+\begin{tabular}{@{}l p{5cm} p{7cm}@{}}
+\toprule
+ & \textbf{Normalizing Flows} & \textbf{Diffusion Models} \\
+\midrule
+\textbf{User defines} & Base distribution $p_{base}$ & Noise schedule $f, g$ \\[6pt]
+\textbf{Parameterization} & $T_\theta = T^\theta_{0|1} \circ \cdots \circ T^\theta_{K-2|K-1}$ & Scores $s^\theta_1, \ldots, s^\theta_{K-1}$ \\[6pt]
+\textbf{Inference} & $X_h = T^\theta_{h|h+1}(X_{h+1})$, where $X_{K-1} \sim p_{base}$. Transformations are deterministic. & $X_h \sim p^\theta_{h|h+1}(\cdot | X_{h+1}) = \mathcal{N}(\ldots)$. Transforms are non-deterministic. \\[6pt]
+\textbf{Optimum} & $\theta^* = \arg\min_\theta \mathrm{KL}(\pi \| p^\theta)$ & $\theta^* = \arg\min_\theta \mathbb{E}_{k,x,z}\bigl[\|s^\theta_k(\alpha_{k|0} x + \sigma_{k|-} z) + z/\sigma_{k|0}\|^2\bigr]$ where $k \sim \mathrm{Unif}$, $x \sim \pi$, and $z \sim \mathcal{N}(0, \mathbb{I})$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Variational Inference}
+\subsubsection{Method}
+\paragraph{Distances of Probability Distributions} There are couple ways to measure the distance between probability measures. Each is good for a certain context. A (very) non-exhaustive list
+\begin{itemize}
+	\item \textbf{Kullback-Leibler divergence} (also called the Relative Entropy)
 		\begin{align}
 			\text{KL}(p\|q) = \int p(x) \, \log \frac{p(x)}{q(x)} \, dx
 		\end{align}
 		Note this is not symmetric, hence why we don't call it a distance but instead a divergence.
 		
-		\emph{Comments:} It's easy to numerically compute. You can rewrite it as
+		\emph{Comments:} It's mendable to numerical computations. You can rewrite it as
 		\begin{align}
 			\text{KL}(p \| q) = \mathbb E_{x\sim p} [\log p(x)] - \mathbb E_{x\sim p}[\log q(x)].
 		\end{align}
 		In computation, you usually have access to log-probabilities, and you can approximate the expectation using a sampling technique. Also, the KL is related to the TV distance by Pinsker's inequality: $\|p - q\|_{TV} \leq \sqrt{\frac{1}{2} \text{KL}(p \| q)}$. 
-	\item Wasserstein Distance
+		
+		We'll focus on this for the rest of the lecture, but let me briefly mention two other distances which are common to the fields
+		\item Total variation distance
 		\begin{align}
-			W_p(p,q) = \sup_{\gamma \in \Gamma} \int \| x- y \|^p \, d\gamma(x,y)^{1/p}
+			\| p - q\|_{TV} = \frac{1}{2} \int |p(x) - q(x) | \, dx
+		\end{align}
+		\emph{Comments:} It's an $L_1$ bound on the distributions, so if you don't care about the moments but making sure the spaces are close, then it's good. However, you can NOT bound moments using this...
+		\item Wasserstein Distance
+		\begin{align}
+			W_p(p,q) = \left(\inf_{\gamma \in \Gamma} \int \| x- y \|^p \, d\gamma(x,y) \right)^{1/p}
 		\end{align}
 		where $\Gamma$ is the set of couplings on $p,q$. A coupling $\gamma(p,q)$ is defined a joint probability distribution s.t. it marginalizes to recover $p,q$; $\int \gamma(p(x), q(y)) dx = q(y)$ and vice versa.
 		
 		\emph{Comments:} This is considered the most natural way to compare distributions. You can also bound moments, unlike the TV distance.
 \end{itemize}
+\begin{fact}
+	Any of these measurements will are non-negative, and equal zero i.f.f. the two distributions are equal, making them good loss functions for neural networks!
+\end{fact}
+\paragraph{KL Divergence as Loss Function}
+What do we use in practice? As hinted earlier, the KL Divergence is preferred for computational easiness. However it is not symmetric, so the question becomes: which argument does the parameterized distribution $p_\theta$ and target distribution $\pi$ go into?
+\begin{enumerate}
+	\item Forward KL
+	\begin{align}
+		\text{KL}(\pi \| p_\theta) & = \mathbb E_{x \sim \pi } \left[\log \frac{\pi(x)}{p_\theta(x)} \right] = \mathbb E_{x \sim \pi} [\log \pi(x)] - \mathbb E_{x \sim \pi}[\log p_\theta(x)]
+	\end{align}
+	We used this in the generative modeling case because the dataset $\mathcal D = \{x_i\}_i$ could be used to approximate the expectation values $\mathbb E_\pi[f] \approx \frac{1}{|\mathcal D|} \sum_{x \in \mathcal D} f(x)$. Additionally, you don't actually evaluate $\pi(x)$, because during training you're interested in $\nabla_\theta \text{KL}(\pi \| p_\theta)$.
+	
+	An upside is this has mass-covering behavior. 
+	
+	Naively, we don't use this in sampling because if you could compute $\mathbb E_\pi$, then you would have already solved your problem. 
+	
+	\item Reverse KL
+	\begin{align}
+		\text{KL}(p_\theta \| \pi) = \mathbb E_{x \sim p_\theta} \left[\log \frac{p_\theta(x)}{\pi(x)} \right]
+	\end{align}
+	We can use this in sampling because now it only requires oracle access to $\pi$. We can compute $\mathbb E_{x\sim p_\theta}$ because this is what the generative model does. Evaluating $p_\theta(x)$ is accessible for certain generative models (normalizing flowss).
+	
+	A big downside to the reverse KL is $p_\theta$ has mode seeking behavior. Say $\pi$ has multiple modes and $p_\theta$ has only found one of the modes, so both are evaluating high (meaning $p_\theta / \pi \approx 1$ so $\log (\cdot) \approx 0$) leading to low KL. If $p_\theta$ is low and $\pi$ is high, then your KL is still small. There's not a lot of signal saying "we're missing something".
+\end{enumerate}
+\begin{figure*}[h]
+		\centering
+		\includegraphics[scale=0.25]{figures/variational/vi_mixture_progression.png}
+		\caption{Normalizing flow trained using reverse KL. Blue dots are realized samples at various points in training. It finds one mode and then struggles to find another, exhibiting mode seeking behavior.}
+\end{figure*}
 
-Any of these measurements will equal zero i.f.f. the two distributions are equal, and  they're all non-negative, which makes them good loss functions for neural networks. As hinted earlier, the KL Divergence is preferred for computational easyness. The question becomes which argument do the, parameterized distribution $p_\theta$ and target distribution $\pi$, go?
+\paragraph{ELBO (Evidence Lower Bound)} Suppose your target distribution was unnormalized $\pi(x) = \tilde \pi(x) / Z$, where $Z = \int \tilde \pi(x) \, dx$. Meaning you only had access to $\tilde \pi$. And additionally you wanted to estimate the evidence/log partition function $\log Z$? You can expand out the KL divergence
 \begin{align}
-	\KL(p_\theta \| \pi) & = \int p_\theta(x) \log \frac{p_\theta(x)}{\pi(x)} \, dx =  \mathbb E_{x \sim p_\theta} [\log p_\theta(x) ] - \mathbb E_{x \sim p_\theta} [\log \pi(x)]\\
-	\KL(\pi \| p_\theta) & = \mathbb E_{x \sim \pi} [\log \pi(x)] - \mathbb E_{x \sim \pi}[\log p_\theta(x)]
+	\text{KL}(p_\theta \| \pi) & = \mathbb E_{p_\theta}[\log p_\theta(x)-\log \tilde \pi(x) + \log Z] \\
+	& = \underbrace{\mathbb E_{p_\theta}[\log p_\theta(x)-\log \tilde \pi(x)]}_{\equiv - \text{ELBO}(p_\theta)} + \log Z
 \end{align}
-Notice, these get 
+Because $\KL \geq 0$, we find 
+\begin{align}
+	\log Z \geq \text{ELBO}(p_\theta)
+\end{align} 
+This is the Lower Bound for the Evidence, hence the name ELBO. So if you do gradient assent on the ELBO (or gradient descent on KL), you'll get a variational bound on the model evidence.
+
+
+\subsection{Variational Inference using Normalizing Flows}
+\begin{sidework}
+	As an aside, there's a cute trick that allows us to use Forward KL and get the mode-covering behavior. The idea is to use the pushback (instead of the pushforward) on your normalizing flow. Recall the pushforward is given by
+	\begin{align}
+		p_\theta(x) = p(T_\theta^{-1}(x)) | J_{T^{-1}_\theta}(x)| \approx \pi(x)
+	\end{align}
+	and the corresponding pushback is given by
+	\begin{align}
+		q_\theta(z) = \pi(T_\theta(z)) |J_{T_\theta}(z)| \approx p_{base}(z)
+	\end{align}
+	The loss function is written as
+	\begin{align}
+		\text{KL}(\pi \| p_\theta) = \text{KL}(q_\theta \| p_{base}) = \mathbb E_{x \sim q_\theta} \left[\log \frac{q_\theta(x)}{p_{base}(x)} \right]
+	\end{align}
+	which now has the mode-covering behavior! The downside is your estimate is biased until your Markov chains converge. 
+\end{sidework}
+
+
+
+\paragraph{Summary} of the training \& test time generation
+\begin{algorithm}[h!]
+\caption{Training}
+\begin{algorithmic}[1]
+\Require Flow $T_\theta$, base distribution $p_{\mathrm{easy}}$, target distribution $\pi$ (up to normalization) 
+\Require Learning rate $\eta$, batch size $N$, initial parameters $ {\theta}_0$
+\State Initialize $t \gets 0$
+\While{$ {\theta}_t$ not converged}
+    \State $t \gets t + 1$
+    \State Sample $\{z_i\}_{i=1}^N \sim p_{\mathrm{easy}}(z)$
+    \State Push forward: $x_i \gets T_{ {\theta}_{t-1}}(z_i)$ for all $i = 1, \dots, N$
+    \State Evaluate loss estimate:
+    \[
+        \hat{\mathcal{L}}( {\theta}_{t-1}) = \frac{1}{N} \sum_{i=1}^{N} \Big[ -\log \tilde{\pi}(x_i) - \log \big|J_{T_{ {\theta}_{t-1}}}(z_i)\big| + \log p_{\mathrm{easy}}(z_i) \Big]
+    \]
+    \State Compute gradient via backpropagation
+	\State Update parameters $ {\theta}_{t}$ according to your favorite optimizer
+\EndWhile
+\State \Return $ {\theta}_t$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h!]
+\caption{Test time, generation of samples}
+\begin{algorithmic}[1]
+\Require Trained flow $T_{ {\theta}^*}$, base distribution $p_{\mathrm{easy}}$, number of samples $M$
+\State Sample $\{z_i\}_{i=1}^M \sim p_{\mathrm{easy}}(z)$
+\State Push forward: $x_i \gets T_{ {\theta}^*}(z_i)$ for all $i = 1, \dots, M$
+\State \Return $\{x_i\}_{i=1}^M$ \quad (approximate samples from $\pi$)
+\end{algorithmic}
+\end{algorithm}
+
+In practice, Bob Carpenter \& Louis Grenioux (CCM Flatiron) say they've gotten this to work on hundreds of dimensions but not higher. Louis believes this is a dead-end in research, and we should focus on other methods (illustrated in the next section).
+
+\subsubsection{Fixing Bias}
+In practice, you can't minimize the KL perfectly, so your $p_\theta$ is slightly biased. I'll go through a couple of techniques
+
+\paragraph{Importance sampling}
+If want to compute $\mathbb E_{x \sim \pi}[f(x)]$, so just multiply by one
+\begin{align}
+	\mathbb E_{x \sim \pi}[f(x)] = \int \pi(x) f(x) \, dx = \int p_\theta(x) \frac{\pi(x)}{p_\theta(x)} f(x) \, dx = \mathbb E_{x \sim p_\theta}\left[\frac{\pi(x)}{p_\theta(x)} f(x) \right]
+\end{align}
+And then empirically estimate $\mathbb E_{x \sim p_\theta}$ as a sum over a finite amount of samples. The problem is to get a low variance estimate of $\mathbb E_{x \sim p_\theta}$, your $p_\theta$ has to better approximate $\pi$ (in particular, you have to get exponentially better as the dimension scales), and minimizing the KL becomes exponentially difficult as the dimension scales, so you're cooked.
+
+\paragraph{Importance Resampling} 
+
+\paragraph{Metropolis Hastings}
+Accept and reject samples according to a Metropolis Hastings step
+
+\paragraph{Hamiltonian Monte Carlo} Run Hamiltonian Monte Carlo on the pushback space $z$.
+
+\subsection{Tempering using Diffusion Paths}
+
+
+\subsubsection{Method}
+\paragraph{Recap of diffusion models}
+A diffusion model defines a Markov chain that runs \emph{backward} in time from noise to data. 
+Starting from a sample of pure noise $X_{K} \sim p_{K} \approx \mathcal N(0, I)$, we iteratively apply learned reverse transitions
+\begin{align}
+    X_{k} \sim p^\theta_{k \mid k+1}(\,\cdot \mid X_{k+1}), \qquad k = K{-}1,\, K{-}2,\, \dots,\, 0,
+\end{align}
+with the aim that the marginal of the final sample satisfies $X_0 \sim \pi$.
+
+Under the Euler--Maruyama discretization of the reverse SDE, each reverse transition $p^\theta_{k\mid k+1}(\,\cdot\mid x_{k+1})$ is Gaussian, with mean determined by the learned \textbf{score} $\nabla_{x}\log p_k(x)$.
+
+\paragraph{Naive Approach}
+
+A natural idea is to minimize the reverse KL divergence between the model's marginal at time $0$ and the target:
+\begin{align}
+    \text{KL}(p^\theta_0 \,\big\|\, \pi )
+    &= \mathbb E_{p^\theta_0}\!\left[\log \frac{p^\theta_0(x_0)}{\pi(x_0)}\right].
+\end{align}
+However, the marginal $p^\theta_0$ is obtained by integrating out all intermediate steps:
+\begin{align}
+    p^\theta_0(x_0)
+    &= \int p_K(x_K)\,\prod_{k=0}^{K-1} p^\theta_{k\mid k+1}(x_k \mid x_{k+1})\; dx_{1:K}\,,
+\end{align}
+which is a high-dimensional integral that we cannot evaluate tractably. So this direct approach is not feasible.
+
+\paragraph{Lifting to the joint path space}
+
+Instead, we work with the \emph{joint} distribution over the entire chain of states $(x_0, x_1, \dots, x_K)$. Starting from $\pi$, define a joint distribution by applying a fixed forward diffusion:
+\begin{align}
+    \pi_{0:K}(x_0, \dots, x_K)
+    &:= \pi(x_0)\,\prod_{k=0}^{K-1} p_{k+1\mid k}(x_{k+1}\mid x_k),
+\end{align}
+where each forward transition is a Gaussian perturbation:
+\begin{align}
+    p_{k+1\mid k}(x_{k+1}\mid x_k) = \mathcal N\!(x_{k+1};\; \alpha_{k+1\mid k}\, x_k,\;\sigma^2_{k+1\mid k}\,\mathbb I ).
+\end{align}
+
+\paragraph{Reverse (generative) process.}
+The learned model defines its own joint:
+\begin{align}
+    p^\theta_{0:K}(x_0, \dots, x_K)
+    &:= p_K(x_K)\,\prod_{k=0}^{K-1} p^\theta_{k\mid k+1}(x_k \mid x_{k+1}).
+\end{align}
+
+\paragraph{Path-space KL divergence.}
+We minimize the KL divergence between these two joint distributions:
+\begin{align}
+    \text{KL} (p^\theta_{0:K} \,\big\|\, \pi_{0:K} )
+    &= \mathbb E_{p^\theta_{0:K}}\!\left[\log \frac{p^\theta_{0:K}(x_{0:K})}{\pi_{0:K}(x_{0:K})}\right].
+\end{align}
+Substituting the factorizations and simplifying:
+\begin{align}
+    &= \mathbb E_{p^\theta_{0:K}}\!\left[\log \frac{p_K(x_K)}{\pi(x_0)} \;+\; \sum_{k=0}^{K-1}\log \frac{p^\theta_{k\mid k+1}(x_k\mid x_{k+1})}{p_{k+1\mid k}(x_{k+1}\mid x_k)}\right].
+\end{align}
+Every term inside the expectation is now a ratio of known Gaussians (or evaluations of $\pi$), so this objective is \textbf{tractable}: we can estimate it with Monte Carlo samples from the reverse chain $p^\theta_{0:K}$.
+\begin{itemize}
+	\item In last week's normalizing-flow approach, minimizing $\text{KL}(p^\theta\|\pi)$ at the level of the marginal $p^\theta_0$ is known to be \emph{mode-seeking}: the model tends to concentrate on a single mode of $\pi$. Although the path-space objective above is still formally a $\text{KL}(p^\theta\|\pi)$-type divergence, it operates on the \emph{joint} path distribution rather than the marginal. Diffusion models learn ``tunnels'' through the joint space that connect noise to each mode, and these tunnels can coexist, so the method can capture multiple modes more effectively.
+	\item By lifting from $\mathbb R^d$ to the joint path space $\mathbb R^{d \times (K+1)}$, the effective dimensionality of the problem has increased by a factor of $K+1$. This makes optimization harder and variance of gradient estimators larger.
+	\item The reverse transitions $p^\theta_{k \mid k+1}$ arise from an Euler--Maruyama discretization of the continuous-time reverse SDE. This discretization introduces approximation error: even at the global optimum $\theta^*$ of the path-space KL, the marginal $p^{\theta^*}_0$ will not exactly equal $\pi$. In other words, the estimator is \textbf{biased} due to the time-discretization, and this bias vanishes only as $K \to \infty$. You can correct for this using sequential monte carlo techniques, but that's a discussion for another lecture.
+\end{itemize}
+
+
+
+\begin{thebibliography}{9}
+\bibitem{louis}
+Seminars \& chats with Louis Grenioux. But you can read through his thesis / presentation for some insights.
+
+\bibitem{hmc_scaling}
+Beskos et al, Optimal tuning of the Hybrid Monte-Carlo Algorithm, \url{https://arxiv.org/abs/1001.4460}.
+
+\bibitem{beyondELBO}
+Blessing et al, Beyond ELBOs: A Large-Scale Evaluation of Variational Methods for Sampling, \url{https://arxiv.org/pdf/2406.07423}.
+
+\bibitem{simfree}
+He et al, No Trick, No Treat: Pursuits and Challenges Towards Simulation-free Training of Neural Samplers, \url{https://arxiv.org/abs/2502.06685}.
+
+\bibitem{iterativeposteriorsampling}
+Grenioux et al, Stochastic Localization via Iterative Posterior Sampling
+, \url{https://arxiv.org/abs/2402.10758}.
+
+
+\end{thebibliography}
 
 
 
 
+
+\newpage
 \section{Normalizing Flows}
 To get variational inference to work better than just MCMC, here's a couple things I want
 \begin{enumerate}

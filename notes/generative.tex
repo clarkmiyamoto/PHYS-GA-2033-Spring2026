@@ -39,9 +39,7 @@ Similarly for an SDE (ODE with stochastic fluctuations)
 \begin{align}
 	X_{t+h} = X_t + X_t + h u_t(X_t)  + (W_{t+h} - W_t) \, \sigma_t(X_t) + \mathcal O(h^{3/2}) \label{eqn:SDETrue}
 \end{align}
-The $\mathcal O(h^{3/2})$ is due to fluctuations on the order $h \, (W_{t+h} - W_t)$, as we've noted that $W_{t+h} - W_t$ is order $\sqrt{h}$. 
-
-For brevity, we'll use a shorthand for \ref{eqn:SDETrue}
+The $\mathcal O(h^{3/2})$ is due to fluctuations on the order $h \, (W_{t+h} - W_t)$, as we've noted that $W_{t+h} - W_t$ is order $\sqrt{h}$. For brevity, we'll use a shorthand for \ref{eqn:SDETrue}
 \begin{align}
 	dX_t = \mu_t(X_t) \, dt + \sigma_t(X_t)\, dW_t
 \end{align}
@@ -73,15 +71,9 @@ On the LHS
 \end{align}
 Put LHS = RHS, and you're done. $\hfill \Box$
 \end{sidework}
-As a side note, this proof is typically done using Ito's lemma, and (I think) it holds in weak-convergence. This proof uses the Euler Maruyama, and taking $h \to 0$ gives strong convergence (which in turn implies weak-convergence). 
+As a side note, this proof is typically done using Ito's lemma, and (I think) it holds in weak-convergence. This proof uses the Euler Maruyama, and taking $h \to 0$ gives strong convergence (which in turn implies weak-convergence).
 
 
-
-
-
-
-
-\section{Score Based Diffusion}
 
 \section{Stochastic Interpolants}
 \subsection{ODE Formulation}
@@ -127,14 +119,6 @@ where $p_t(x) = \int \delta(I_t - x) d\nu(x_0, x_1) d\mu(z)$. This is the distri
 	\boxed{b_t(x) = \mathbb E[\dot I_t | I_t = x]}
 \end{align}
 
-\paragraph{Inference}
-Because of the Fokker-Planck equation, I know the correspondance between the PDE on the distribution and the ODE on the samples.
-\begin{align}
-	\partial p_t (x) & = - \nabla \cdot (b_t(x) \, p_t(x)),  \ p_{t=0} = p_0\\
-	\iff \frac{d}{dt}x_t & = b_t(x_t), \ x_0 \sim p_0 \label{ode}
-\end{align} 
-So now I can transport samples by specifying a choice of a stochastic interpolant $I_t$. Computing $b_t(x)$ is difficult, as it implictly depends on $x_0,x_1,z$, so perhaps we can learn it.
-
 \paragraph{Training}
 Now that we've specified our choice of stochastic interpolant, we should create a training goal. We'll use a neural network to approximate $\hat b_t(x) \approx b_t(x)$. A simple loss is mean-square error weighted by the probability distribution
 \begin{align}
@@ -142,6 +126,14 @@ Now that we've specified our choice of stochastic interpolant, we should create 
 	& = \int_0^1 \mathbb E[|\hat b_t(I_t) - \dot I_t^2|^2] \, dt
 \end{align}
 After you've converged, you can plug in your estimate into a discretization of \ref{ode}.
+
+\paragraph{Inference}
+Because of the Fokker-Planck equation, I know the correspondance between the PDE on the distribution and the ODE on the samples.
+\begin{align}
+	\partial p_t (x) & = - \nabla \cdot (b_t(x) \, p_t(x)),  \ p_{t=0} = p_0\\
+	\iff \frac{d}{dt}X_t & = b_t(X_t), \ X_0 \sim p_0 \label{ode}
+\end{align} 
+So now I can transport samples by specifying a choice of a stochastic interpolants $I_t$. Computing $b_t(x)$ is difficult, as it implictly depends on $x_0,x_1,z$, so perhaps we can learn it.
 
 \subsection{SDE Formulation}
 To recap, you've figured out how to learn an ODE which has $\text{Law}(I_t) = p_t$. Perhaps we can extend these to SDEs. Consider the Fokker-Planck equation

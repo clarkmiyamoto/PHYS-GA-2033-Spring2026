@@ -12,13 +12,15 @@
 %%% Imports
 % Mathematics
 \usepackage{amsmath, amsfonts, amssymb} % Math formatting
-\usepackage{algorithm,algpseudocode}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
 \numberwithin{equation}{section} % Number equation per section
 \DeclareMathOperator{\Tr}{Tr}
 \DeclareMathOperator{\KL}{KL}
 \DeclareMathOperator{\iid}{\stackrel{\mathrm{iid}}{\sim}}
 
-
+\usepackage{booktabs}
 
 
 
@@ -128,7 +130,7 @@
 \maketitle
 
 \begin{abstract}
-	Machine learning is important for obvious reasons, but physicist often only know the heuristics reasons for certain ML design decisions. I hope these recitations aid in sharpening your understanding.
+	Machine learning is important for obvious reasons. Coming from a physics background, there were certain concepts that were not as obvious to me, I hope these recitation notes make some things clearer.
 \end{abstract}
 \paragraph{Resources:}
 
@@ -162,15 +164,6 @@ High energy / field theorist are extremely skilled at computing expectation valu
 
 \input{geometric.tex}
 
-
-
-
-
-
-\section{Training Large Models}
-\subsection{Transformers}
-\subsection{$\mu$P Optimizer}
-\section{Geometric Deep Learning}
 
 
 \newpage
