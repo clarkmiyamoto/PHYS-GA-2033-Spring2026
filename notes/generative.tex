@@ -44,6 +44,9 @@ The $\mathcal O(h^{3/2})$ is due to fluctuations on the order $h \, (W_{t+h} - W
 	dX_t = \mu_t(X_t) \, dt + \sigma_t(X_t)\, dW_t
 \end{align}
 
+\subsection{Particle Trajectories \& Probability Densities}
+Think about simulating the trajectory of individual particles. Re-running the simulation (w/ different RNG seeds) gave slightly different trajectories due to $dW_t$, meaning there's implicitly a probability distribution at each point in time. Turns out there's an exact correspondence between the SDE governing particle's motion, and a PDE which is the probability distribution over particles.
+
 \begin{theorem}
 	[Fokker-Planck Equation]
 	Consider the stochastic differential equation
@@ -51,14 +54,13 @@ The $\mathcal O(h^{3/2})$ is due to fluctuations on the order $h \, (W_{t+h} - W
 		dX_t & = \mu_t(X_t) \, dt + \sigma_t dW_t\\
 		X_0 & \sim p_0 & \text{Boundary condition}
 	\end{align}
-	where $\mu_t : [0,1] \times \mathbb R^d \to \mathbb R^d$ and $\sigma_t : [0,1] \to \mathbb R^d$ are deterministic functions. Then the corresponding probability distribution $X_t \sim p_t$ solves a partial differential equation of the following form
+	where $\mu_t : [0,1] \times \mathbb R^d \to \mathbb R^d$ and $\sigma_t : [0,1] \to \mathbb R_{\geq 0}$ are deterministic functions. Then the corresponding probability distribution $X_t \sim p_t$ solves a partial differential equation of the following form
 	\begin{align}
 		\partial_t p_t(x) & = - \nabla \cdot (\mu_t\, p_t) + \frac{\sigma_t^2}{2} \Delta p_t\\
 		p_{t=0} & = p_0 & \text{Boundary condition}
 	\end{align}
 \end{theorem}
-\begin{sidework}
-	\emph{Proof:}  Since $X_t$ is a random variable, it has a corresponding probability density function. I'll notate this as $p_t$. Now you need to show that $p_t$ have a the corresponding time evolution. The trick to do this, is to recall the trick you employ when you show something is secretly a delta function. You would integrate it against a test function $f(x)$ and show it behaved as expected. We'll do the same thing.
+\emph{Proof:}  Since $X_t$ is a random variable, it has a corresponding probability density function. I'll notate this as $p_t$. Now you need to show that $p_t$ have a the corresponding time evolution. The trick to do this, is to recall the trick you employ when you show something is secretly a delta function. You would integrate it against a test function $f(x)$ and show it behaved as expected. We'll do the same thing.
 \begin{align}
 	\partial_t \mathbb E[f(X_t)] & = \lim_{h \to 0} \frac{1}{h} \mathbb E[f(X_{t+h}) - f(X_t)] \\
 	& = \lim_{h \to 0} \mathbb E[\nabla f^T\, u_t(X_t) + \frac{\sigma^2_t}{2} \Delta f(X_t) + \mathcal O(h)]\\
@@ -70,8 +72,136 @@ On the LHS
 	\partial_t \mathbb E[f(X_t)] = \int f(x) \partial_t p_t(x) \, dx
 \end{align}
 Put LHS = RHS, and you're done. $\hfill \Box$
-\end{sidework}
-As a side note, this proof is typically done using Ito's lemma, and (I think) it holds in weak-convergence. This proof uses the Euler Maruyama, and taking $h \to 0$ gives strong convergence (which in turn implies weak-convergence).
+\\
+\\
+This is an extremely powerful thing you've just derived so a couple of notes
+\begin{itemize}
+	\item Numerically, instead of solving a PDE, you can simulate it by running a bunch of particles via the SDE and histogramming them. 
+	\item The Greens function $G(x',t',x,t)$ correspond to transition amplitudes $p(x', t' | x, t)$. This is not so surprising because in QFT the greens function corresponded to tree-level 2-point functions (covariances), and the kernel in Gaussian Processes corresponded to the autocorrelation time (covariance across time). 
+\end{itemize}
+
+
+\paragraph{Example: (Overdamped) Langevin Dynamics} What choice of $\mu_t$ and $\sigma_t$ leaves the distribution invariant $\partial_t p_t = 0$?
+\begin{align}
+	0 = \partial_t p_t & = -\nabla \cdot (\mu_t p_t) + \frac{\sigma_t^2}{2} \Delta p_t\\
+	& = \nabla \cdot (- \mu_t p_t + \frac{\sigma_t^2}{2} \nabla p_t)\\
+	& = \nabla \cdot [(- \mu_t + \frac{\sigma_t^2}{2} \nabla \log p_t ) p_t]
+\end{align}
+If you choose $\mu_t(x) = \frac{\sigma_t^2}{2} \nabla \log p_t(x)$, you have the stationary dynamics!
+\begin{align}
+	dX_t = \frac{\sigma_t^2}{2}\nabla \log p_t(X_t) \, dt + \sigma_t dW_t
+\end{align}
+Some comments
+\begin{itemize}
+	\item In physics, $\sigma_t \propto \sqrt{kT}$ (where $k$ is Boltzmann's constant, and $T$ is temperature) and  $p(x) = e^{-\beta U(x)} / Z$ (Boltzmann distribution). Implying $\nabla \log p_t(x) = - \beta \nabla U(x)$. Physically it is the equation of motion of a particle moving in a viscous fluid.
+	\item In statistics, if we set $\log p_t = \log \pi$ (target distribution), we can use this as a sampling algorithm. 
+	\item It takes infinite time to converge to the stationary distribution. Time-discretization makes you sample a biased-distribution (which you can correct using a Metropolis Hastings step).
+\end{itemize}
+
+
+\paragraph{Example: Ornstein-Uhlenbeck Process (Harmonic Oscillator)}
+Let's solve the SDE where $\mu_t(X_t) = - \mu \, X_t$ and $\sigma_t = \sigma_t$. Note: "solution" to an SDE means we write $X_t = [...]$ as a random variable (or equivalently its distribution).
+\begin{align}
+	dX_t = - \mu \, X_t \, dt + \sigma_t dW_t, \; X_{t=0} = X_0
+\end{align}
+\begin{itemize}
+	\item If we recall the Langevin equation, $\nabla \log p_t(x) = - \frac{\mu \sigma^2_t}{2} \, x$, we recover the OU process. What distribution has that as a gradient...? A Gaussian! So it will converge to a Gaussian in the infinite time-limit.
+	\item Using Fokker Planck, we have a PDE on $\text{Law}(X_t) = p_t$
+	\begin{align}
+		\partial_t p_t = \mu \nabla \cdot (x\, p_t) + \frac{\sigma^2_t}{2}\Delta  p_t, && p_{t=0} = \text{Law}(X_0) := \pi
+	\end{align}
+	You can get the Greens function by solving this in momentum space. It is given by
+	\begin{align}
+		p(x', t' | x_0) = \frac{1}{(2\pi \Sigma^2(t))^{d/2}} \exp \left( -\frac{|x-  x_0 e^{-\mu t}|^2}{2 \Sigma^2(t)} \right)
+	\end{align}
+	where $\Sigma(t) = \int_0^t \sigma_s^2 e^{-2\mu(t-s)}\,ds$.
+	\item This is the forward process of diffusion models. In particular, it is the Variance Preserving SDE.
+\end{itemize}
+\paragraph{Example: Heat Equation (Variance Exploding)}
+In the case you noise the data by
+\begin{align}
+	dX_t = \sigma_t dW_t
+\end{align}
+this is called the variance exploding process. It is recommended to use the VP-process, but I've included it here for completeness.
+
+\subsection{Reversing Time}
+
+\begin{theorem}
+	[Reverse Kolmogorov Equation]
+	Given an SDE 
+	\begin{align}
+		dX_t & = \mu_t(X_t) \, dt + \sigma_t \, dW_t,  & \text{Law}(X_{t=0})  = p_0\\
+		\partial_t p_t & = - \nabla \cdot (\mu_t p_t) + \frac{\sigma_t^2}{2} \Delta ( p_t) & p_{t=0} = p_0
+	\end{align}
+	which evolves forwards in time $t = 0,..., T$.  There is a corresponding reversed process, which runs in $\tau = T - t$ (where $\tau$ increments from $0, ..., T$)
+	\begin{align}
+		dX_\tau &= [-\mu_{T-\tau}(X_\tau) + \sigma_{T-\tau}^2 \nabla \log p_{T-\tau}(X_\tau)] \, d\tau + \sigma_{T-\tau} d \tilde W_\tau & \text{Law}(X_{\tau=0}) = q_0\\
+		\partial_\tau q_\tau & = - \nabla \cdot [(-\mu_{T-\tau}(x) + \sigma_{T-\tau}^2 \nabla \log p_{T-\tau}(x)) q_\tau] + \frac{\sigma_\tau^2}{2} \Delta q_\tau & q_{\tau=0} = p_T
+ 	\end{align}
+ 	where $q_{\tau} = p_{T-\tau}$.
+\end{theorem}
+\emph{Proof:} Let $\tau := T-t$ and $q_\tau := p_{T-\tau} = p_{t}$. Let's use change of basis to find the $\tau$-time evolution on $q_\tau$.
+\begin{align}
+	q(\tau) & = p(T-\tau)\\
+	\partial_\tau q(\tau) & = \partial_\tau q(T-\tau) \\
+	& = - q'(T-\tau)  & \text{Chain Rule}
+\end{align}
+Let's substitute in the Fokker Planck equation. For simplicity $f_{\tau} = \mu_{T-\tau}$ and $g_{\tau} = \sigma_{T-\tau}$
+\begin{align}
+	\partial_\tau q_\tau & = \nabla \cdot(f_\tau \, p_{T-\tau}) - \frac{g_\tau^2}{2} \Delta p_{T-\tau} \\
+	& = \nabla \cdot(f_\tau \, q_\tau) - \frac{g_\tau^2}{2} \Delta q_\tau & \text{Definition of } q_\tau
+\end{align}
+In order to convert this back to the SDE formulation, the diffusion term must be positive semi-definite, so let's do some massaging
+\begin{align}
+	\partial_\tau q_\tau & = \nabla \cdot(f_\tau \, q_\tau) - \frac{g_\tau^2}{2} \nabla \cdot (\nabla q_\tau)\\
+	& = \nabla \cdot \left(f_\tau q_\tau - g_\tau^2 \nabla q_\tau \right) + \frac{g_\tau^2}{2} \nabla \cdot (\nabla q_\tau)\\
+	& = \nabla \cdot [(f_\tau - g_\tau^2 \nabla \log q_\tau)q_\tau] + \frac{g_\tau^2}{2} \Delta q_\tau\\
+	& = - \nabla \cdot [(-f_\tau + g_\tau^2 \nabla \log q_\tau)q_\tau] + \frac{g_\tau^2}{2} \Delta q_\tau
+\end{align}
+This gives us the time-reverse Fokker Planck. Now we can just apply our correspondence between PDE and SDE to get the reverse-SDE. \qed
+\\
+\\
+In diffusion models, if you use the reverse SDE at test-time, then this is the continuous-time formulation of diffusion models. This is called \textbf{score-based diffusion}.
+
+\subsection{Training Objective \& Tweedie's Formula}
+So the question is what is $\nabla \log p_t(x)$? So recall under the OU process, we say
+\begin{align}
+	x_t = \alpha_t x_0 + \beta_t z
+\end{align} 
+where $x_0 \sim \pi$ and $z \sim \mathcal N(0, \mathbb I)$ (where they're drawn independently). Let $p_t := \text{Law}(x_t)$. Since you're adding two random variables, this corresponds to a convolution
+\begin{align}
+	p_t & = \pi * \mathcal N(0, \mathbb I)\\
+	p_t(x) & = \frac{1}{Z_t}\int \pi(z) \exp \left( -\frac{(x - z)^2}{2 \beta_t^2} \right) \, dz
+\end{align}
+Turns out the score corresponds to a posterior expectation. This result is called \textbf{Tweedie's Formula}
+\begin{align}
+	\nabla \log p_t(x) & = \frac{1}{\int \pi(z) \exp \left( -\frac{(x - z)^2}{2 \beta_t^2} \right)} \nabla_x \int \pi(z) \exp \left( -\frac{(x - z)^2}{2 \beta_t^2} \right)\\
+	& = \frac{-1}{...}  \int \pi(z) \exp(...) \frac{(x-z)}{\beta_t^2}\, dz\\
+	& = \frac{\mathbb E_{Z|X_t}[Z|X_t = x] -x}{\beta_t^2} = \mathbb E_{Z | X_t}\left[ \frac{Z - X_t}{\beta_t^2} \Big | X_t= x  \right] 
+\end{align}
+where the expectation $\mathbb E_{Z|X_t}$ is taken over the distribution $p(z | x_t) = \frac{1}{\tilde Z_t}   \pi(z) \exp \left( - (x_t-z)^2/2 \beta_t^2\right)$, where $Z_t = \int \pi(z) \exp \left( - (x_t-z)^2/2 \beta_t^2 \right) dz$.\\
+\\
+This is an excellent thing to have because conditional expectations are the optimal ((in squared error)) function to learn.
+\begin{align}
+	\arg \min_f\mathbb E[(x - f(y))^2] = \mathbb E[x|y]
+\end{align}
+\emph{Proof:}
+\begin{align}
+	\mathbb E[(x - f(y))^2] & = \mathbb E[x^2 + f(y)^2 -2 x f(y)]\\
+	& = \mathbb E[f(y)^2 - 2 x f(y)] + C\\
+	& = \mathbb E[f(y)^2 - 2 \mathbb E[x | y] f(y)] + C & \text{Tower property}\\
+	& = \mathbb E[f(y)^2 + \mathbb E[x|y]^2 - 2 \mathbb E[x|y]f(y)] + C\\
+	& = \mathbb E[(\mathbb E[x|y] - f(y))^2] + C
+\end{align}
+This is a convex objective, so $\arg \min_f$ yields the optimal choice: $\mathbb E[x|y]$. \qed
+\\
+\\
+This is all to say, you can rewrite conditional expectations as $L_2$ loss functions. So we've reduced this fancy problem to just minimizing the mean squared error
+\begin{align}
+	\mathcal L(\theta) & = \mathbb E_{x_0, z, t}[ (\eta_\theta(x_t,t) - z)^2] \\
+	& = \mathbb E_{x_0 \sim \pi}\mathbb E_{t \sim \text{Unif}[0,T]} \mathbb E_{z \sim \mathcal N(0, \mathbb I)} [(\eta_\theta(\alpha_t x_0 + \beta_t z, t) - z)^2]
+\end{align}
+
 
 
 
